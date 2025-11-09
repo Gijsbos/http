@@ -1,0 +1,23 @@
+{
+    "name": "gijsbos/http",
+    "description": "HTTP Package",
+    "keywords": [
+        "http"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Gijs and contributors",
+            "homepage": "https://github.com/gijsbos/http/graphs/contributors"
+        }
+    ],
+    "require-dev": {
+        "phpunit/phpunit": "^5.7 || ^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Http\\": "src/"
+        }
+    }
+}
