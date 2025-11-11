@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace gijsbos\Http;
+namespace gijsbos\Http\Utils;
 
 use gijsbos\Http\Exceptions\BadRequestException;
 use gijsbos\Http\Exceptions\ConflictException;
@@ -13,6 +13,7 @@ use gijsbos\Http\Exceptions\MethodNotAllowedException;
 use gijsbos\Http\Exceptions\NotAcceptableException;
 use gijsbos\Http\Exceptions\ResourceNotFoundException;
 use gijsbos\Http\Exceptions\UnauthorizedException;
+use gijsbos\Http\Response;
 
 /**
  * ResponseManager
