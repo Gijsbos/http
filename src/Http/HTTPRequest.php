@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace gijsbos\Http\Http;
 
+use ErrorException;
 use Exception;
 use gijsbos\Http\RequestMethod;
 use gijsbos\Http\Response;

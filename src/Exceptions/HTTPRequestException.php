@@ -94,14 +94,22 @@ class HTTPRequestException extends Exception
     }
 
     /**
-     * printJson
+     * sendJson
      */
-    public function printJson()
+    public function sendJson()
     {
-        print(json_encode([
-            "status" => $this->statusCode,
+        $responseData = [
+            "statusCode" => $this->statusCode,
             "error" => $this->error,
             "errorDescription" => $this->errorDescription,
-        ]));
+        ];
+
+        if(count($this->data))
+        {
+            $responseData = array_merge($responseData, $this->data);
+        }
+
+        http_response_code($this->statusCode);
+        print(json_encode($responseData));
     }
 }
