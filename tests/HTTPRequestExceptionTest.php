@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace WDS;
+namespace gijsbos\Http\Exceptions;
 
 use PHPUnit\Framework\TestCase;
 
@@ -22,7 +22,7 @@ final class HTTPRequestExceptionTest extends TestCase
 
     public function testExceptionMessage()
     {
-        $this->expectExceptionMessage("(400) error - errorDescription ([key-1] => value-1, [key-2] => [key-3] => value-2)");
+        $this->expectExceptionMessage("(400) error - errorDescription ({\"key-1\":\"value-1\",\"key-2\":{\"key-3\":\"value-2\"}})");
 
         // Throw exception
         throw new HTTPRequestException(400, "error", "errorDescription", array(

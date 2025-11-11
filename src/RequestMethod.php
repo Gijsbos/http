@@ -5,25 +5,6 @@ namespace gijsbos\Http;
 
 use Exception;
 
-define("GET", flag_id('gijsbos\Http'));
-define("POST", flag_id('gijsbos\Http'));
-define("PUT", flag_id('gijsbos\Http'));
-define("DELETE", flag_id('gijsbos\Http'));
-define("PATCH", flag_id('gijsbos\Http'));
-define("COPY", flag_id('gijsbos\Http'));
-define("HEAD", flag_id('gijsbos\Http'));
-define("OPTIONS", flag_id('gijsbos\Http'));
-define("LINK", flag_id('gijsbos\Http'));
-define("UNLINK", flag_id('gijsbos\Http'));
-define("PURGE", flag_id('gijsbos\Http'));
-define("LOCK", flag_id('gijsbos\Http'));
-define("UNLOCK", flag_id('gijsbos\Http'));
-define("PROPFIND", flag_id('gijsbos\Http'));
-define("VIEW", flag_id('gijsbos\Http'));
-define("COOKIE", flag_id('gijsbos\Http'));
-define("SERVER", flag_id('gijsbos\Http'));
-define("ENV", flag_id('gijsbos\Http'));
-
 /**
  * RequestMethod
  */
