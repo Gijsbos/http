@@ -10,7 +10,7 @@ use Exception;
  */
 class HTTPRequestException extends Exception 
 {
-    public $status;
+    public null|int $statusCode;
     public $error;
     public $errorDescription;
     public $data;
@@ -18,9 +18,9 @@ class HTTPRequestException extends Exception
     /**
      * __construct
      */
-    public function __construct(null|int $status = null, null|string $error = null, null|string $errorDescription = null, null|array $data = null) 
+    public function __construct(null|int $statusCode = null, null|string $error = null, null|string $errorDescription = null, null|array $data = null) 
     {
-        $this->status = $status;
+        $this->statusCode = $statusCode;
         $this->error = $error;
         $this->errorDescription = $errorDescription;
         $this->data = $data !== null ? $data : array();
@@ -32,7 +32,7 @@ class HTTPRequestException extends Exception
      */
     public function getStatusCode()
     {
-        return $this->status;
+        return $this->statusCode;
     }
 
     /**
@@ -90,7 +90,7 @@ class HTTPRequestException extends Exception
         $dataToString = $this->dataToString() !== null ? " (" . $this->dataToString() . ")" : "";
 
         // Return message
-        return "({$this->status}) {$this->error} -$description$dataToString";
+        return "({$this->statusCode}) {$this->error} -$description$dataToString";
     }
 
     /**
@@ -99,7 +99,7 @@ class HTTPRequestException extends Exception
     public function printJson()
     {
         print(json_encode([
-            "status" => $this->status,
+            "status" => $this->statusCode,
             "error" => $this->error,
             "errorDescription" => $this->errorDescription,
         ]));
