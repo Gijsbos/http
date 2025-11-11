@@ -20,7 +20,7 @@ define("HTTP_REQUEST_DEBUG",    flag_id('gijsbos\Http\Http'));
 /**
  * HTTPRequest
  * 
- *  Creates a curl request and turns the result into an object of type WDS\Response or CurlHandle.
+ *  Creates a curl request and turns the result into an object of type Response or CurlHandle.
  * 
  *  ASYNC HTTPRequests:
  * 

@@ -30,7 +30,6 @@ class HTTPRequestLog
         $this->headers = $headers;
         $this->fields = [];
         $this->format = 'default';
-        $this->function = 'WDS\Log::message';
         $this->prefix = null;
     }
 
