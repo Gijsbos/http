@@ -24,7 +24,7 @@ class HTTPRequestException extends Exception
         $this->error = $error;
         $this->errorDescription = $errorDescription;
         $this->data = $data !== null ? $data : array();
-        parent::__construct($this->toString(), $status);
+        parent::__construct($this->toString(), $statusCode);
     }
 
     /**
