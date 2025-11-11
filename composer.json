@@ -12,12 +12,13 @@
             "homepage": "https://github.com/gijsbos/http/graphs/contributors"
         }
     ],
-    "require-dev": {
-        "phpunit/phpunit": "^5.7 || ^10.0"
-    },
     "autoload": {
         "psr-4": {
             "gijsbos\\Http\\": "src/"
         }
+    },
+    "require": {
+        "gijsbos/extfuncs": "^1.3",
+        "gijsbos/logging": "^1.0"
     }
 }
