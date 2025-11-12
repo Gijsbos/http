@@ -3,26 +3,26 @@
 /**
  * FilterInput Types
  */
-define("ARRAY_ITEM", flag_id());
-define("FILE", flag_id());
-define("SINGLE_VALUE", flag_id());
-define("MULTI_VALUE", flag_id());
-define("FALSE_IF_EMPTY", flag_id());
-define("STRING", flag_id());
-define("TO_LOWERCASE", flag_id());
-define("TO_UPPERCASE", flag_id());
-define("INT", flag_id());
-define("INTEGER", flag_id());
-define("FLOAT", flag_id());
-define("DOUBLE", flag_id());
-define("BOOL", flag_id());
-define("BOOLEAN", flag_id());
-define("EMAIL", flag_id());
-define("URI", flag_id());
-define("IP", flag_id());
-define("IP_ADDRESS", flag_id());
-define("JSON", flag_id());
-define("UUID4", flag_id());
+define("ARRAY_ITEM", flag_id('gijsbos\Http'));
+define("SINGLE_VALUE", flag_id('gijsbos\Http'));
+define("MULTI_VALUE", flag_id('gijsbos\Http'));
+define("FALSE_IF_EMPTY", flag_id('gijsbos\Http'));
+define("STRING", flag_id('gijsbos\Http'));
+define("TO_LOWERCASE", flag_id('gijsbos\Http'));
+define("TO_UPPERCASE", flag_id('gijsbos\Http'));
+define("INT", flag_id('gijsbos\Http'));
+define("INTEGER", flag_id('gijsbos\Http'));
+define("FLOAT", flag_id('gijsbos\Http'));
+define("DOUBLE", flag_id('gijsbos\Http'));
+define("BOOL", flag_id('gijsbos\Http'));
+define("BOOLEAN", flag_id('gijsbos\Http'));
+define("EMAIL", flag_id('gijsbos\Http'));
+define("URI", flag_id('gijsbos\Http'));
+define("IP", flag_id('gijsbos\Http'));
+define("IP_ADDRESS", flag_id('gijsbos\Http'));
+define("JSON", flag_id('gijsbos\Http'));
+define("UUID4", flag_id('gijsbos\Http'));
+define("FILE", flag_id('gijsbos\Http'));
 
 /**
  * Request Methods
