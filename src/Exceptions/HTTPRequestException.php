@@ -70,7 +70,7 @@ class HTTPRequestException extends Exception
             // Check if data has items
             if(count($this->data) > 0)
             {
-                return json_encode($this->data);
+                return implode_key_value_array($this->data);
             }
         }
 
