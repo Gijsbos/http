@@ -9,6 +9,10 @@ use gijsbos\Http\Exceptions\ForbiddenException;
 use gijsbos\Http\Exceptions\HTTPRequestException;
 use gijsbos\Http\Exceptions\HTTPRequestSentToHTTPSPortException;
 use gijsbos\Http\Exceptions\InternalServerErrorException;
+use gijsbos\Http\Exceptions\InvalidArgumentErrorException;
+use gijsbos\Http\Exceptions\InvalidArgumentInputException;
+use gijsbos\Http\Exceptions\InvalidArgumentMissingException;
+use gijsbos\Http\Exceptions\InvalidArgumentTypeException;
 use gijsbos\Http\Exceptions\MethodNotAllowedException;
 use gijsbos\Http\Exceptions\NotAcceptableException;
 use gijsbos\Http\Exceptions\ResourceNotFoundException;
@@ -285,6 +289,22 @@ abstract class ResponseManager
             }
 
             return $response;
+        }
+        else if($exception instanceof InvalidArgumentTypeException)
+        {
+            return ResponseManager::badRequest(self::formatError($exception->argument, "IncorrectType"), $exception->getMessage());
+        }
+        else if($exception instanceof InvalidArgumentInputException)
+        {
+            return ResponseManager::badRequest(self::formatError($exception->argument, "IncorrectInput"), $exception->getMessage());
+        }
+        else if($exception instanceof InvalidArgumentMissingException)
+        {
+            return ResponseManager::badRequest(self::formatError($exception->argument, "Missing"), $exception->getMessage());
+        }
+        else if($exception instanceof InvalidArgumentErrorException)
+        {
+            return ResponseManager::badRequest($exception->error, $exception->description);
         }
         else
         {
