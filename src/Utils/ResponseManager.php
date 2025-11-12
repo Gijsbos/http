@@ -317,7 +317,7 @@ abstract class ResponseManager
      */
     public static function responseToString(Response $response) : string
     {
-        return sprintf("[%s] %s", $response->getStatusCode(), \json_encode($response->getParameters()));
+        return sprintf("[%s] %s", $response->getStatusCode(), implode_key_value_array($response->getParameters()));
     }
 
     /**
