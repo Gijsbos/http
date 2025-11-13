@@ -7,10 +7,9 @@ use ErrorException;
 use Exception;
 use gijsbos\Http\RequestMethod;
 use gijsbos\Http\Response;
+use gijsbos\Logging\Classes\LogEnabledClass;
 use InvalidArgumentException;
 use TypeError;
-
-use function gijsbos\Logging\Library\log_error;
 
 define("FOLLOW_LOCATION",       flag_id('gijsbos\Http\Http'));
 define("GET_REDIRECT_URI",      flag_id('gijsbos\Http\Http'));
@@ -36,7 +35,7 @@ define("HTTP_REQUEST_DEBUG",    flag_id('gijsbos\Http\Http'));
  * @method static mixed patch(array $args = [], $flags = null)
  * @method static mixed delete(array $args = [], $flags = null)
  */
-class HTTPRequest
+class HTTPRequest extends LogEnabledClass
 {
     /**
      * @var string $DEFAULT_URL
@@ -126,6 +125,8 @@ class HTTPRequest
      */
     public function __construct(null|string|int $type = null, null|string $uri = null, array $data = [], array $headers = [], null|int $flags = null, null|array $cURLOptions = null, null|string $baseURL = null)
     {
+        parent::__construct();
+
         $args = get_defined_vars();
 
         // Set default values
