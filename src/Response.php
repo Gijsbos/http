@@ -445,6 +445,16 @@ class Response implements ResponseInterface
      *
      * @api
      */
+    public function ok()
+    {
+        return $this->statusCode >= 200 && $this->statusCode < 300;
+    }
+
+    /**
+     * @return Boolean
+     *
+     * @api
+     */
     public function isRedirection()
     {
         return $this->statusCode >= 300 && $this->statusCode < 400;
@@ -560,6 +570,9 @@ class Response implements ResponseInterface
 
             if($errorCode = $this->getErrorCode())
                 $string[] = sprintf("code: %s", $errorCode);
+
+            if($response = $this->getParameter("response"))
+                $string[] = sprintf("response: %s", $response);
 
             return implode(" - ", $string);
         }
