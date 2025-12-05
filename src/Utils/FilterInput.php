@@ -699,6 +699,7 @@ class FilterInput
 
     /**
      * fetchFile
+     * @option strict - true: checks maxSize and mimeTypes, false: does not
      */
     private function fetchFile(string $variableName, $inputValue, $options)
     {
@@ -715,36 +716,44 @@ class FilterInput
                 if($inputValue !== null)
                     FileUploadHandler::readLocal($inputValue, $variableName);
 
+                // Strict mode requires a maxSide and mimeTypes to validate file uploads
+                $isStrict = @$options["strict"] !== false;
+
                 // Get maxSize
                 $maxSize = @$options["maxSize"];
 
                 // Check if options has been set
                 if($maxSize === null)
-                    throw new InvalidArgumentMissingException("{$variableName}MaxSize", $maxSize);
-
-                // Check maxSize type
-                if(!is_int($maxSize))
-                    throw new InvalidArgumentTypeException("{$variableName}MaxSize", $maxSize, 'int', gettype($maxSize));
+                {
+                    if($isStrict)
+                        throw new InvalidArgumentMissingException("{$variableName}MaxSize", $maxSize);
+                }
+                else
+                {
+                    if(!is_int($maxSize))
+                        throw new InvalidArgumentTypeException("{$variableName}MaxSize", $maxSize, 'int', gettype($maxSize));
+                }
 
                 // Get mimeTypes
                 $mimeTypes = @$options["mimeTypes"];
 
                 // Check if options has been set
                 if($mimeTypes === null)
-                    throw new InvalidArgumentMissingException("{$variableName}MimeTypes", $mimeTypes);
+                {
+                    if($isStrict)
+                        throw new InvalidArgumentMissingException("{$variableName}MimeTypes", $mimeTypes);
+                }
+                else
+                {
+                    if(is_array($mimeTypes) && array_is_assoc($mimeTypes))
+                        $mimeTypes = [$mimeTypes];
 
-                // Set mimeTypes string to array
-                if(is_array($mimeTypes) && array_is_assoc($mimeTypes))
-                    $mimeTypes = [$mimeTypes];
+                    if(!is_array($mimeTypes))
+                        throw new InvalidArgumentTypeException("{$variableName}MimeTypes", $mimeTypes, 'string|array', gettype($mimeTypes));
+                }
 
-                // Check maxSize type
-                if(!is_array($mimeTypes))
-                    throw new InvalidArgumentTypeException("{$variableName}MimeTypes", $mimeTypes, 'string|array', gettype($mimeTypes));
-
-                // Create upload handler
                 $fileUploadHandler = new FileUploadHandler();
 
-                // Handle
                 return $fileUploadHandler->read($variableName, $maxSize, $mimeTypes);
             }
             catch(FileUploadHandlerException $ex)
