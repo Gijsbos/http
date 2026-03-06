@@ -513,36 +513,6 @@ class HTTPRequest extends LogEnabledClass
     }
 
     /**
-     * convertToArrayPreserveEmptyObjects
-     */
-    private static function convertToArrayPreserveEmptyObjects($data)
-    {
-        if($data instanceof \stdClass)
-        {
-            $vars = get_object_vars($data);
-
-            if(empty($vars))
-                return $data; // preserve {}
-
-            $result = [];
-            foreach ($vars as $k => $v) {
-                $result[$k] = self::convertToArrayPreserveEmptyObjects($v);
-            }
-            return $result;
-        }
-
-        if(is_array($data))
-        {
-            foreach($data as $k => $v)
-            {
-                $data[$k] = self::convertToArrayPreserveEmptyObjects($v);
-            }
-        }
-
-        return $data;
-    }
-
-    /**
      * getResponseObject
      */
     private static function getResponseObject($response, $statusCode, $errorDescription) : Response
@@ -550,7 +520,7 @@ class HTTPRequest extends LogEnabledClass
         if($errorDescription)
             return new Response(array("error" => $errorDescription), $statusCode);
         else if(is_json($response))
-            return new Response(self::convertToArrayPreserveEmptyObjects(json_decode($response)), $statusCode); // Using associative 'true' causes loss of data when empty object '{}' is returned by json
+            return new Response(json_decode_preserve_empty_objects($response), $statusCode); // Using associative 'true' causes loss of data when empty object '{}' is returned by json
         else
         {
             if(strlen($response) > 0)
