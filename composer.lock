@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9f92c287a6e89c0d22d754e5e1d811bd",
+    "content-hash": "94671562ed22f601491a4c61b42e9960",
     "packages": [
         {
             "name": "brick/math",
@@ -135,16 +135,16 @@
         },
         {
             "name": "gijsbos/extfuncs",
-            "version": "1.6.9",
+            "version": "1.6.10",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Gijsbos/extfuncs.git",
-                "reference": "2c985553551c21f12739785bce094b8863efd3d6"
+                "reference": "055ab8d22f8e91df4ea367a4c015349c2cfc3e4f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Gijsbos/extfuncs/zipball/2c985553551c21f12739785bce094b8863efd3d6",
-                "reference": "2c985553551c21f12739785bce094b8863efd3d6",
+                "url": "https://api.github.com/repos/Gijsbos/extfuncs/zipball/055ab8d22f8e91df4ea367a4c015349c2cfc3e4f",
+                "reference": "055ab8d22f8e91df4ea367a4c015349c2cfc3e4f",
                 "shasum": ""
             },
             "require": {
@@ -180,9 +180,9 @@
             ],
             "support": {
                 "issues": "https://github.com/Gijsbos/extfuncs/issues",
-                "source": "https://github.com/Gijsbos/extfuncs/tree/1.6.9"
+                "source": "https://github.com/Gijsbos/extfuncs/tree/1.6.10"
             },
-            "time": "2026-03-06T08:05:45+00:00"
+            "time": "2026-03-06T08:13:23+00:00"
         },
         {
             "name": "gijsbos/logging",
