@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace gijsbos\ExtFuncs\Utils;
+namespace gijsbos\Http\Utils;
 
 use CURLFile;
 use gijsbos\Http\Http\HTTPRequest;
