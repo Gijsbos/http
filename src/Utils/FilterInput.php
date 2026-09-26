@@ -58,13 +58,13 @@ class FilterInput
     const REGEXP_ALPHABETICAL_SPACES = "/^[ a-zA-Z]+$/";
     const REGEXP_ALPHANUMERIC = "/^[a-zA-Z0-9]+$/";
     const REGEXP_ALPHANUMERIC_SPACES = "/^[ a-zA-Z0-9]+$/";
-    const REGEXP_FILEPATH = "/^[a-zA-Z0-9\.\/\\]+$/";
+    const REGEXP_FILEPATH = "/^[a-zA-Z0-9\.\/\\\\]+$/";
     
     const REGEXP_DATE = "/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$/";
     const REGEXP_DATETIME = "/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}$/";
     const REGEXP_DATE_OR_DATETIME = "/^(?:^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$)|(?:^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}$)$/";
-    const REGEXP_SHA256_HASH = "/^[a-zA-Z0-9]{64}$/";
-    const REGEXP_SHA512_HASH = "/^[a-zA-Z0-9]{128}$/";
+    const REGEXP_SHA256_HASH = "/^[a-fA-F0-9]{64}$/";
+    const REGEXP_SHA512_HASH = "/^[a-fA-F0-9]{128}$/";
 
     public $inputTypes;
     public $exceptions;
@@ -88,19 +88,12 @@ class FilterInput
     }
 
     /**
-     * hasHeader
-     */
-    private function hasHeader(string $key, string $value) : bool
-    {
-        return array_key_exists($key, $_SERVER) && $_SERVER[$key] == $value;
-    }
-
-    /**
      * hasApplicationJSONHeader
      */
     private function hasApplicationJSONHeader() : bool
     {
-        return $this->hasHeader("CONTENT_TYPE", "application/json");
+        // Content type may contain parameters e.g. 'application/json; charset=utf-8'
+        return array_key_exists("CONTENT_TYPE", $_SERVER) && is_string($_SERVER["CONTENT_TYPE"]) && stripos(trim($_SERVER["CONTENT_TYPE"]), "application/json") === 0;
     }
 
     /**
@@ -121,7 +114,8 @@ class FilterInput
         else
             parse_str(file_get_contents('php://input'), $data);
 
-        return $data === null ? [] : $data;
+        // Only JSON objects/arrays can contain variables
+        return is_array($data) ? $data : [];
     }
 
     /**
@@ -430,10 +424,10 @@ class FilterInput
                 }
                 else
                 {
-                    if(!$this->isValidArrayInput($inputValue, $options, $flags))
+                    // Optional values may be empty, values that are set must be valid
+                    if(!($isOptional && mb_strlen($inputValue) === 0) && !$this->isValidArrayInput($inputValue, $options, $flags))
                     {
-                        if(!$isOptional)
-                            $this->handleException(new InvalidArgumentInputException($variableName, $inputValue, implode("|", $options)));
+                        $this->handleException(new InvalidArgumentInputException($variableName, $inputValue, implode("|", $options)));
                     }
                 }
             }
@@ -447,8 +441,8 @@ class FilterInput
      */
     private function fetchInteger(string $variableName, $inputValue = null, $options = null) : int
     {
-        // Cast input to int if possible
-        $inputValue = is_numeric($inputValue) && !is_float($inputValue) && !is_double($inputValue) ? (int) $inputValue : $inputValue;
+        // Cast input to int if possible, strings must contain an integer e.g. '1.5' is not cast
+        $inputValue = is_string($inputValue) && preg_match(self::REGEXP_INT, $inputValue) === 1 ? (int) $inputValue : $inputValue;
 
         // Check if value is of type string
         if(!is_int($inputValue))
@@ -559,7 +553,7 @@ class FilterInput
         }
 
         // Get value
-        $value = (bool) $inputValue === 'true' || $inputValue === '1' || $inputValue === true || $inputValue === 1 ? true : false;
+        $value = $inputValue === true || $inputValue === 1 || (is_string($inputValue) && in_array(strtolower($inputValue), ['1', 'true'], true));
 
         // Return value
         return ($flags & FALSE_IF_EMPTY) ? intval($value) : $value;
@@ -686,6 +680,9 @@ class FilterInput
         }
         else
         {
+            // UUIDs are case insensitive
+            $inputValue = strtolower($inputValue);
+
             // Check if value is of type string
             if(!is_uuid4($inputValue))
             {
@@ -932,6 +929,8 @@ class FilterInput
                     return "JSON";
                 case \preg_match("/UUID4/i", $input) ? true : false:
                     return "UUID4";
+                case \preg_match("/FILE/i", $input) ? true : false:
+                    return "FILE";
                 default:
                     throw new \Exception(sprintf("Could not get filter input type using string '%s'", $input));
             }

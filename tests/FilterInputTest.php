@@ -931,4 +931,229 @@ final class FilterInputTest extends TestCase
         $this->expectExceptionMessage("Invalid input value for argument 'variable1' using type 'DateTime'");
         $result = self::$input->fetch(STRING, "variable1", "/^[a-zA-Z ]+$/", new \DateTime());
     }
+
+    /**
+     * createWithBody
+     *  Creates a FilterInput reading a request body with the given content type
+     */
+    private function createWithBody(string $contentType, string $body) : FilterInput
+    {
+        $_SERVER["CONTENT_TYPE"] = $contentType;
+
+        try
+        {
+            return new class($body) extends FilterInput
+            {
+                private $body;
+                public function __construct(string $body) { $this->body = $body; parent::__construct(); }
+                public function getPHPInput() { return $this->body; }
+            };
+        }
+        finally
+        {
+            unset($_SERVER["CONTENT_TYPE"]);
+        }
+    }
+
+    public function testFetchFromJSONBody()
+    {
+        $filterInput = $this->createWithBody("application/json", '{"name":"John","age":"30"}');
+        $_SERVER["CONTENT_TYPE"] = "application/json";
+        $this->assertEquals("John", $filterInput->fetch(STRING | POST, "name"));
+        $this->assertEquals(30, $filterInput->fetch(INT | PUT, "age"));
+        unset($_SERVER["CONTENT_TYPE"]);
+    }
+
+    public function testFetchMultipleVariableNames()
+    {
+        $this->assertEquals("b", self::$input->fetch(STRING, "first,second", null, ["second" => "b"]));
+    }
+
+    public function testFetchMissingReportsFirstVariableName()
+    {
+        $this->expectExceptionMessage("Argument 'first' is missing");
+        self::$input->fetch(STRING, "first,second", null, ["other" => "b"]);
+    }
+
+    public function testFetchStringToLowerAndUpperCase()
+    {
+        $this->assertEquals("abc", self::$input->fetch(STRING | TO_LOWERCASE, "v", null, "AbC"));
+        $this->assertEquals("ABC", self::$input->fetch(STRING | TO_UPPERCASE, "v", null, "AbC"));
+    }
+
+    public function testFetchStringArrayOptionsCaseInsensitive()
+    {
+        $this->assertEquals("Active", self::$input->fetch(STRING | SINGLE_VALUE, "v", ["active", "inactive"], "Active"));
+    }
+
+    public function testFetchIntEmptyStringIsMissing()
+    {
+        $this->expectException(InvalidArgumentMissingException::class);
+        self::$input->fetch(INT, "v", null, "");
+    }
+
+    public function testFetchIntNegative()
+    {
+        $this->assertSame(-5, self::$input->fetch(INT, "v", null, "-5"));
+    }
+
+    public function testFetchIntWithinRange()
+    {
+        $this->assertSame(5, self::$input->fetch(INT, "v", ["min_range" => 1, "max_range" => 10], "5"));
+    }
+
+    public function testFetchFloatWithinRange()
+    {
+        $this->assertSame(1.5, self::$input->fetch(FLOAT, "v", ["min_range" => 1, "max_range" => 2], "1,5"));
+    }
+
+    public function testFetchBooleanStringFalse()
+    {
+        $this->assertFalse(self::$input->fetch(BOOL, "v", null, "false"));
+        $this->assertFalse(self::$input->fetch(BOOL, "v", null, "0"));
+        $this->assertTrue(self::$input->fetch(BOOL, "v", null, "1"));
+        $this->assertTrue(self::$input->fetch(BOOL, "v", null, true));
+    }
+
+    public function testFetchEmailIsLowercased()
+    {
+        $this->assertEquals("john@example.com", self::$input->fetch(EMAIL, "v", null, "John@Example.com"));
+    }
+
+    public function testFetchIPv6()
+    {
+        $this->assertEquals("::1", self::$input->fetch(IP, "v", null, "::1"));
+    }
+
+    public function testFetchInvalidIP()
+    {
+        $this->expectException(InvalidArgumentTypeException::class);
+        self::$input->fetch(IP, "v", null, "999.1.1.1");
+    }
+
+    public function testFetchJSONArrayInput()
+    {
+        $this->assertEquals(["a" => 1], self::$input->fetch(JSON, "v", null, ["v" => ["a" => 1]]));
+    }
+
+    public function testFetchUUID4Uppercase()
+    {
+        // UUIDs are case-insensitive
+        $this->assertEquals("f47ac10b-58cc-4372-a567-0e02b2c3d479", self::$input->fetch(UUID4, "v", null, "F47AC10B-58CC-4372-A567-0E02B2C3D479"));
+    }
+
+    public function testFetchInvalidRegexpOption()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        self::$input->fetch(STRING, "v", "not a regexp", "value");
+    }
+
+    public function testFailedExceptionsAreCollected()
+    {
+        $filterInput = new FilterInput(["throwExceptionOnFailure" => false]);
+        $filterInput->fetch(INT, "a", null, "x");
+        $filterInput->fetch(EMAIL, "b", null, "not-an-email");
+        $this->assertCount(2, $filterInput->exceptions);
+    }
+
+    public function testRegexpConstants()
+    {
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_DATE, "2026-09-26"));
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_DATETIME, "2026-09-26 12:00:00"));
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_DATE_OR_DATETIME, "2026-09-26"));
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_DATE_OR_DATETIME, "2026-09-26 12:00:00"));
+        $this->assertEquals(0, preg_match(FilterInput::REGEXP_DATE_OR_DATETIME, "2026-09-26T12:00:00"));
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_UUID4, "f47ac10b-58cc-4372-a567-0e02b2c3d479"));
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_ALPHANUMERIC_SPACES, "abc 123"));
+        $this->assertEquals(0, preg_match(FilterInput::REGEXP_ALPHANUMERIC, "abc 123"));
+    }
+
+    public function testGetDataType()
+    {
+        $this->assertEquals("STRING", FilterInput::getDataType("string"));
+        $this->assertEquals("INT", FilterInput::getDataType("integer"));
+        $this->assertEquals("FLOAT", FilterInput::getDataType("double"));
+        $this->assertEquals("BOOL", FilterInput::getDataType("bool"));
+        $this->assertEquals("IP", FilterInput::getDataType("ip_address"));
+        $this->assertEquals("INT", FilterInput::getDataType(\INTEGER));
+        $this->assertEquals("FILE", FilterInput::getDataType(FILE));
+    }
+
+    public function testFetchBooleanStringTrue()
+    {
+        $this->assertTrue(self::$input->fetch(BOOL, "v", null, "true"));
+        $this->assertTrue(self::$input->fetch(BOOL, "v", null, "TRUE"));
+    }
+
+    public function testFetchIntRejectsDecimalString()
+    {
+        $this->expectException(InvalidArgumentTypeException::class);
+        self::$input->fetch(INT, "v", null, "1.5");
+    }
+
+    public function testOptionalValueIsStillValidated()
+    {
+        // An optional value that is set must still be valid
+        $this->expectException(InvalidArgumentInputException::class);
+        self::$input->fetch(STRING | SINGLE_VALUE, "v", ["a", "b"], "not-allowed", true);
+    }
+
+    public function testRegexpFilePathCompiles()
+    {
+        $this->assertEquals(1, preg_match(FilterInput::REGEXP_FILEPATH, "dir/file.txt"));
+    }
+
+    public function testRegexpSHA256OnlyAllowsHex()
+    {
+        $this->assertEquals(0, preg_match(FilterInput::REGEXP_SHA256_HASH, str_repeat("z", 64)));
+    }
+
+    public function testJSONContentTypeWithCharset()
+    {
+        $filterInput = $this->createWithBody("application/json; charset=utf-8", '{"name":"John"}');
+        $this->assertEquals(["name" => "John"], $filterInput->inputStream);
+    }
+
+    public function testJSONScalarBody()
+    {
+        // A body that is not a JSON object/array contains no variables
+        $filterInput = $this->createWithBody("application/json", '5');
+        $this->assertEquals([], $filterInput->inputStream);
+    }
+
+    public function testGetDataTypeFileString()
+    {
+        $this->assertEquals("FILE", FilterInput::getDataType("file"));
+    }
+
+    /**
+     * FileUploadHandler::convertSizeStringToBytes
+     */
+    public function testConvertSizeStringToBytes()
+    {
+        $this->assertSame(100, FileUploadHandler::convertSizeStringToBytes("100"));
+        $this->assertSame(5 * FileUploadHandler::MB, FileUploadHandler::convertSizeStringToBytes("5M"));
+        $this->assertSame(5 * FileUploadHandler::MB, FileUploadHandler::convertSizeStringToBytes("5MB"));
+        $this->assertSame(2 * FileUploadHandler::GB, FileUploadHandler::convertSizeStringToBytes("2G"));
+        $this->assertSame(FileUploadHandler::TB, FileUploadHandler::convertSizeStringToBytes("1TB"));
+    }
+
+    public function testConvertSizeStringToBytesInvalid()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        FileUploadHandler::convertSizeStringToBytes("large");
+    }
+
+    public function testConvertSizeStringToBytesKilobytesAndLowercase()
+    {
+        // php.ini style values e.g. upload_max_filesize=10m
+        $this->assertSame(512 * FileUploadHandler::KB, FileUploadHandler::convertSizeStringToBytes("512K"));
+        $this->assertSame(512 * FileUploadHandler::KB, FileUploadHandler::convertSizeStringToBytes("512KB"));
+        $this->assertSame(10 * FileUploadHandler::MB, FileUploadHandler::convertSizeStringToBytes("10m"));
+    }
+
+    public function testConvertSizeStringToBytesDecimal()
+    {
+        $this->assertSame((int) (1.5 * FileUploadHandler::MB), FileUploadHandler::convertSizeStringToBytes("1.5M"));
+    }
 }

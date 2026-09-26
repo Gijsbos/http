@@ -31,6 +31,7 @@ class HTTPRequestLog
         $this->fields = [];
         $this->format = 'default';
         $this->prefix = null;
+        $this->function = 'error_log';
     }
 
     /**
@@ -130,9 +131,9 @@ class HTTPRequestLog
                     $data[$key] = "********";
                 }
             }
-            else
+            else if(is_string($value))
             {
-                $data[$key] = preg_replace("/Authorization:.*/i", "Authorization: ********", $value);
+                $value = preg_replace("/Authorization:.*/i", "Authorization: ********", $value);
                 $data[$key] = preg_replace("/AUTHORIZATION=.*/i", "AUTHORIZATION= ********", $value);
             }
         }

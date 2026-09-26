@@ -172,8 +172,8 @@ class HTTPRequestPool
                 // Add empty request hash so it will not be used in further lookups
                 $this->requestHashes[] = null;
 
-                // Add to multi curl handle
-                return 0; // 0 = Same as curl_multi_add_handle returns on success
+                // Return index
+                return $index;
             }
         }
 
@@ -224,7 +224,8 @@ class HTTPRequestPool
             $groupResults = array_sort_keys($groupResults);
 
             // Execute
-            $callback($groupResults);
+            if($callback !== null)
+                $callback($groupResults);
         });
     }
 

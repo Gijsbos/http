@@ -235,16 +235,17 @@ class HTTPRequest extends LogEnabledClass
      */
     private function parseHeaders(array $args)
     {
-        $headers = is_array($this->headers) ? $this->headers : [];
+        // Default headers are overwritten by object headers, which are overwritten by argument headers
+        $headers = is_array(self::$DEFAULT_HEADERS) ? self::$DEFAULT_HEADERS : [];
+
+        if(is_array($this->headers))
+        {
+            $headers = array_merge($headers, $this->headers);
+        }
 
         if(array_key_exists("headers", $args) && is_array($args["headers"]))
         {
             $headers = array_merge($headers, $args["headers"]);
-        }
-
-        if(is_array(self::$DEFAULT_HEADERS))
-        {
-            $headers = array_merge($headers, self::$DEFAULT_HEADERS);
         }
         
         return $headers;
@@ -278,8 +279,8 @@ class HTTPRequest extends LogEnabledClass
     {
         $defaultOptions = self::$DEFAULT_OPTIONS;
 
-        // Merge default with object options
-        $cURLOptions = $defaultOptions + (is_array($this->cURLOptions) ? $this->cURLOptions : []);
+        // Merge object options with default options, object options take precedence
+        $cURLOptions = (is_array($this->cURLOptions) ? $this->cURLOptions : []) + $defaultOptions;
 
         // Extract from args
         if(array_key_exists("cURLOptions", $args))
@@ -289,7 +290,7 @@ class HTTPRequest extends LogEnabledClass
             if(!is_array($options))
                 throw new TypeError("Invalid cURL option type using argument type " . get_type($options));
 
-            $cURLOptions = $cURLOptions + $options;
+            $cURLOptions = $options + $cURLOptions;
         }
         else if(array_key_exists("options", $args))
         {
@@ -298,7 +299,7 @@ class HTTPRequest extends LogEnabledClass
             if(!is_array($options))
                 throw new TypeError("Invalid cURL option type using argument type " . get_type($options));
 
-            $cURLOptions = $cURLOptions + $options;
+            $cURLOptions = $options + $cURLOptions;
         }
         
         return $cURLOptions;
@@ -487,7 +488,7 @@ class HTTPRequest extends LogEnabledClass
      */
     public function removeHeader(string $key)
     {
-        if(in_array($key, $this->headers))
+        if(array_key_exists($key, $this->headers))
             unset($this->headers[$key]);
     }
 
@@ -524,7 +525,7 @@ class HTTPRequest extends LogEnabledClass
         else
         {
             if(strlen($response) > 0)
-                return new Response(array("response" => $response), 400);
+                return new Response(array("response" => $response), $statusCode === 0 ? 500 : $statusCode);
             else
             {
                 if($statusCode === 0)
@@ -538,7 +539,7 @@ class HTTPRequest extends LogEnabledClass
     /**
      * handleCurlResult
      */
-    public static function handleCurlResult($curl, $data, null|int $flags = null)
+    public static function handleCurlResult($curl, $data, null|int $flags = null, bool $verbose = false)
     {
         // Get response
         $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -550,7 +551,7 @@ class HTTPRequest extends LogEnabledClass
         if($data === false)
         {
             // Get errno information
-            $errno = self::getErrnoByCode($errno);
+            $errno = self::getErrnoByCode($errno) ?: ["code" => $errno, "short" => "UNKNOWN", "long" => curl_strerror($errno)];
 
             // Create error message
             $message = sprintf("%d %s %s (%d requests) (after %d s) (url: %s)", $errno["code"], $errno["short"], $errno["long"], self::$CALL_COUNT, time() - self::$START_TIME, $url);
@@ -634,9 +635,9 @@ class HTTPRequest extends LogEnabledClass
             CURLOPT_TIMEOUT => self::$DEFAULT_TIMEOUT,
         );
 
-        // Check options
+        // Check options, user options take precedence
         if(is_array($options) && count($options) > 0)
-            $curlOptions = $curlOptions + $options;
+            $curlOptions = $options + $curlOptions;
 
         // Set options
         curl_setopt_array($curl, $curlOptions);
@@ -735,7 +736,7 @@ class HTTPRequest extends LogEnabledClass
         // Modify data when headers are set
         if($this->hasHeader("Content-Type: multipart\/form-data", $headers, true))
             $data = $data;
-        else if($this->hasHeader("Content-Type: application\/json", $headers))
+        else if($this->hasHeader("Content-Type:\s*application\/json", $headers))
             $data = json_encode($data);
         else
             $data = http_build_query($data);
@@ -759,9 +760,9 @@ class HTTPRequest extends LogEnabledClass
             CURLOPT_TIMEOUT => self::$DEFAULT_TIMEOUT,
         );
 
-        // Check options
+        // Check options, user options take precedence
         if(is_array($options) && count($options) > 0)
-            $curlOptions = $curlOptions + $options;
+            $curlOptions = $options + $curlOptions;
 
         // Set options
         curl_setopt_array($curl, $curlOptions);
@@ -786,9 +787,9 @@ class HTTPRequest extends LogEnabledClass
     /**
      * callPut
      */
-    public function callPut(string $url, $data, array $options, array $headers)
+    public function callPut(string $url, $data, array $options, array $headers, null|int $flags = null)
     {
-        return $this->callPost($url, $data, $headers, $options, RequestMethod::PUT);
+        return $this->callPost($url, $data, $headers, $options, $flags, RequestMethod::PUT);
     }
 
     /**
@@ -814,6 +815,9 @@ class HTTPRequest extends LogEnabledClass
             if(is_string(@$parsed["scheme"]) && strlen($parsed["scheme"]))
                 $newURL[] = sprintf("%s://", $parsed["scheme"]);
 
+            if(is_string(@$parsed["user"]) && strlen($parsed["user"]))
+                $newURL[] = is_string(@$parsed["pass"]) ? sprintf("%s:%s@", $parsed["user"], $parsed["pass"]) : sprintf("%s@", $parsed["user"]);
+
             if(is_string(@$parsed["host"]) && strlen($parsed["host"]))
                 $newURL[] = $parsed["host"];
 
@@ -824,6 +828,9 @@ class HTTPRequest extends LogEnabledClass
                 $newURL[] = $parsed["path"];
 
             $newURL[] = sprintf("?%s", http_build_query($data));
+
+            if(is_string(@$parsed["fragment"]) && strlen($parsed["fragment"]))
+                $newURL[] = sprintf("#%s", $parsed["fragment"]);
 
             $url = implode("", $newURL);
 
@@ -836,7 +843,8 @@ class HTTPRequest extends LogEnabledClass
      */
     private function prependBaseURL(string $url)
     {
-        if(is_string($this->baseURL) && strlen($this->baseURL) && !str_starts_with($url, $this->baseURL))
+        // An absolute url (with scheme) is never prefixed, e.g. a call to another server
+        if(is_string($this->baseURL) && strlen($this->baseURL) && !str_starts_with($url, $this->baseURL) && !preg_match("#^[a-z][a-z0-9+.\-]*://#i", $url))
         {
             $baseURL = str_ends_with($this->baseURL, "/") ? substr($this->baseURL, 0, strlen($this->baseURL) - 1) : $this->baseURL;
             $url = str_starts_with($url, "/") ? substr($url, 1) : $url;
@@ -998,12 +1006,18 @@ class HTTPRequest extends LogEnabledClass
     }
 
     /**
+     * @var array MAGIC_METHODS
+     *  Protected methods that can be called both as object and static method
+     */
+    const MAGIC_METHODS = ["call", "get", "post", "put", "patch", "delete"];
+
+    /**
      * __call
      */
     public function __call($name, $arguments)
     {
-        // Allow object methods to be called as static
-        if(method_exists(self::class, $name))
+        // Allow request methods to be called on the object
+        if(in_array($name, self::MAGIC_METHODS, true))
             return $this->$name(...$arguments);
 
         throw new Exception("Call to undefined method $name");
@@ -1014,8 +1028,8 @@ class HTTPRequest extends LogEnabledClass
      */
     public static function __callStatic($name, $arguments)
     {
-        // Allow object methods to be called as static
-        if(method_exists(self::class, $name))
+        // Allow request methods to be called as static
+        if(in_array($name, self::MAGIC_METHODS, true))
             return (new HTTPRequest())->$name(...$arguments);
         
         // Search for base url in BASE_URLS
@@ -1503,36 +1517,39 @@ function http_request(string $method, string $url, array $data = [], array $head
     if($curl === false)
         throw new Exception("Curl init failed");
 
-    // Has header
+    // Has header, compares the start of the header value case insensitive e.g. 'application/json; charset=utf-8'
     $hasHeader = function($key, $value, $headers) {
-        return @$headers[$key] == strtolower($value);
+        foreach($headers as $headerKey => $headerValue)
+            if(is_string($headerKey) && strcasecmp($headerKey, $key) === 0 && stripos((string) $headerValue, $value) === 0)
+                return true;
+        return false;
     };
+
+    // Methods sending data in the body, other methods send data in the url
+    $hasBody = in_array($method, ["POST", "PUT", "PATCH"]);
 
     // Process data
     if(count($data))
     {
-        if($method === "POST" || $method === "PUT")
+        if($hasBody)
         {
-            if($hasHeader("Content-Type", "multipart\/form-data", $headers))
+            if($hasHeader("Content-Type", "multipart/form-data", $headers))
                 $data = $data;
             else if($hasHeader("Content-Type", "application/json", $headers))
                 $data = json_encode($data);
             else
                 $data = http_build_query($data, "", null, PHP_QUERY_RFC3986);
         }
-        else if($method === "GET" || "DELETE")
+        else
         {
-            $url .= "?" . http_build_query($data, "", null, PHP_QUERY_RFC3986);
+            $url .= (str_contains($url, "?") ? "&" : "?") . http_build_query($data, "", null, PHP_QUERY_RFC3986);
         }
     }
 
     // Convert headers
-    if(count($headers))
-    {
-        $_headers = [];
-        foreach($headers as $key => $value)
-            $_headers[] = "$key: $value";
-    }
+    $_headers = [];
+    foreach($headers as $key => $value)
+        $_headers[] = is_int($key) ? $value : "$key: $value";
 
     // Set options
     $curlOptions = array(
@@ -1544,12 +1561,13 @@ function http_request(string $method, string $url, array $data = [], array $head
         CURLOPT_HTTPHEADER => $_headers,
     );
 
-    // Add params
-    if($method === "POST" || $method === "PUT")
-    {
+    // Set request method
+    if($method !== "GET")
         curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
+
+    // Add body
+    if($hasBody)
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-    }
 
     if($verbose)
     {

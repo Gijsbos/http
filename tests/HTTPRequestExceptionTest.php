@@ -32,4 +32,134 @@ final class HTTPRequestExceptionTest extends TestCase
             )
         ));
     }
+
+    public function testExceptionMessageWithoutDescriptionAndData()
+    {
+        $exception = new HTTPRequestException(400, "error");
+        $this->assertEquals("(400) error -", $exception->getMessage());
+        $this->assertEquals(400, $exception->getCode());
+    }
+
+    public function testGetters()
+    {
+        $exception = new HTTPRequestException(409, "error", "description", ["key" => "value"]);
+        $this->assertEquals(409, $exception->getStatusCode());
+        $this->assertEquals("error", $exception->getError());
+        $this->assertEquals("description", $exception->getErrorDescription());
+        $this->assertEquals(["key" => "value"], $exception->getData());
+        $this->assertEquals("value", $exception->getData("key"));
+        $this->assertNull($exception->getData("missing"));
+    }
+
+    /**
+     * @runInSeparateProcess
+     */
+    public function testSendJson()
+    {
+        $exception = new HTTPRequestException(409, "error", "description", ["key" => "value"]);
+        ob_start();
+        $exception->sendJson();
+        $output = ob_get_clean();
+        $this->assertEquals('{"statusCode":409,"error":"error","errorDescription":"description","key":"value"}', $output);
+    }
+
+    public static function exceptionProvider() : array
+    {
+        return [
+            [BadRequestException::class, 400],
+            [UnauthorizedException::class, 401],
+            [PaymentRequiredException::class, 402],
+            [ForbiddenException::class, 403],
+            [ResourceNotFoundException::class, 404],
+            [MethodNotAllowedException::class, 405],
+            [NotAcceptableException::class, 406],
+            [ProxyAuthenticationRequiredException::class, 407],
+            [RequestTimeoutException::class, 408],
+            [ConflictException::class, 409],
+            [GoneException::class, 410],
+            [LengthRequiredException::class, 411],
+            [PreconditionFailedException::class, 412],
+            [ContentTooLargeException::class, 413],
+            [UriTooLongException::class, 414],
+            [UnsupportedMediaTypeException::class, 415],
+            [RangeNotSatisfiableException::class, 416],
+            [ExpectationFailedException::class, 417],
+            [ImATeapotException::class, 418],
+            [MisdirectedRequestException::class, 421],
+            [UnprocessableContentException::class, 422],
+            [TooEarlyException::class, 425],
+            [UpgradeRequiredException::class, 426],
+            [PreconditionRequiredException::class, 428],
+            [TooManyRequestsException::class, 429],
+            [RequestHeaderFieldsTooLargeException::class, 431],
+            [UnavailableForLegalReasonsException::class, 451],
+            [HTTPRequestSentToHTTPSPortException::class, 497],
+            [InternalServerErrorException::class, 500],
+            [NotImplementedException::class, 501],
+            [BadGatewayException::class, 502],
+            [ServiceUnavailableException::class, 503],
+            [GatewayTimeoutException::class, 504],
+            [HTTPVersionNotSupportedException::class, 505],
+        ];
+    }
+
+    /**
+     * @dataProvider exceptionProvider
+     */
+    public function testExceptionDefaults(string $class, int $statusCode)
+    {
+        $exception = new $class();
+        $this->assertInstanceOf(HTTPRequestException::class, $exception);
+        $this->assertSame($statusCode, $exception->getStatusCode());
+        $this->assertSame($statusCode, $exception->getCode());
+        $this->assertMatchesRegularExpression("/^[a-z][a-zA-Z]+$/", $exception->getError());
+        $this->assertNotEmpty($exception->getErrorDescription());
+        $this->assertSame([], $exception->getData());
+    }
+
+    /**
+     * @dataProvider exceptionProvider
+     */
+    public function testExceptionOverrides(string $class, int $statusCode)
+    {
+        $exception = new $class("customError", "Custom description", ["key" => "value"]);
+        $this->assertSame($statusCode, $exception->getStatusCode());
+        $this->assertSame("customError", $exception->getError());
+        $this->assertSame("Custom description", $exception->getErrorDescription());
+        $this->assertSame(["key" => "value"], $exception->getData());
+    }
+
+    public function testInvalidArgumentInputExceptionMessage()
+    {
+        $this->assertEquals("Argument input 'abc' for argument 'age' does not meet requirement 'int'", (new InvalidArgumentInputException("age", "abc", "int"))->getMessage());
+        $this->assertEquals("Argument input 'true' for argument 'age' does not meet requirement 'int'", (new InvalidArgumentInputException("age", true, "int"))->getMessage());
+        $this->assertEquals("Argument input 'NULL' for argument 'age' does not meet requirement 'int'", (new InvalidArgumentInputException("age", null, "int"))->getMessage());
+        $this->assertEquals("Argument input for argument 'age' does not meet requirement 'int'", (new InvalidArgumentInputException("age", [], "int"))->getMessage());
+    }
+
+    public function testInvalidArgumentTypeExceptionMessage()
+    {
+        $this->assertEquals("Argument type for argument 'age' is incorrect, received 'string', expected 'int' using value 'abc'", (new InvalidArgumentTypeException("age", "abc", "int", "string"))->getMessage());
+        $this->assertEquals("Argument type for argument 'age' is incorrect, received 'boolean', expected 'int' using value 'false'", (new InvalidArgumentTypeException("age", false, "int", "boolean"))->getMessage());
+    }
+
+    public function testInvalidArgumentMissingExceptionMessage()
+    {
+        $exception = new InvalidArgumentMissingException("age", null);
+        $this->assertEquals("Argument 'age' is missing", $exception->getMessage());
+        $this->assertEquals("age", $exception->argument);
+    }
+
+    public function testInvalidArgumentErrorException()
+    {
+        $exception = new InvalidArgumentErrorException("ageTooLow", "Age must be at least 18");
+        $this->assertEquals("ageTooLow", $exception->error);
+        $this->assertEquals("Age must be at least 18", $exception->getMessage());
+    }
+
+    public function testConstructWithoutStatusCode()
+    {
+        $exception = new HTTPRequestException();
+        $this->assertNull($exception->getStatusCode());
+    }
 }

@@ -24,7 +24,7 @@ class HTTPRequestException extends Exception
         $this->error = $error;
         $this->errorDescription = $errorDescription;
         $this->data = $data !== null ? $data : array();
-        parent::__construct($this->toString(), $statusCode);
+        parent::__construct($this->toString(), $statusCode ?? 0);
     }
 
     /**
@@ -109,7 +109,7 @@ class HTTPRequestException extends Exception
             $responseData = array_merge($responseData, $this->data);
         }
 
-        http_response_code($this->statusCode);
+        http_response_code($this->statusCode ?? 500);
         print(json_encode($responseData));
     }
 }

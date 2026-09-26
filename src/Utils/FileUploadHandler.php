@@ -59,24 +59,19 @@ class FileUploadHandler
      */
     public static function convertSizeStringToBytes(string $size)
     {
-        preg_match("/(\d+)(\w+)?/", $size, $matches);
-
-        if(count($matches))
+        // Supports php.ini notation e.g. '512K', '10m', '1.5G'
+        if(preg_match("/^\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s*$/", $size, $matches))
         {
-            $number = intval($matches[1]);
-            $format = @$matches[2];
+            $number = floatval($matches[1]);
+            $format = strtoupper($matches[2] ?? "");
 
-            if(is_int($number) && is_null($format))
-                return $number;
-
-            return match($format) {
-                "MB" => $number * self::MB,
-                "M" => $number * self::MB,
-                "GB" => $number * self::GB,
-                "G" => $number * self::GB,
-                "TB" => $number * self::TB,
-                "T" => $number * self::TB,
-                default => throw new InvalidArgumentException("Invalid size format '$format'"),
+            return (int) match($format) {
+                "", "B" => $number,
+                "KB", "K" => $number * self::KB,
+                "MB", "M" => $number * self::MB,
+                "GB", "G" => $number * self::GB,
+                "TB", "T" => $number * self::TB,
+                default => throw new InvalidArgumentException("Invalid size format '{$matches[2]}'"),
             };
         }
 

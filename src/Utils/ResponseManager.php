@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace gijsbos\Http\Utils;
 
+use gijsbos\Http\Exceptions;
 use gijsbos\Http\Exceptions\BadRequestException;
 use gijsbos\Http\Exceptions\ConflictException;
 use gijsbos\Http\Exceptions\ForbiddenException;
@@ -24,6 +25,47 @@ use gijsbos\Http\Response;
  */
 abstract class ResponseManager
 {
+    /**
+     * @var array STATUS_CODE_EXCEPTIONS
+     *  Maps status codes to HTTPRequestException classes
+     */
+    const STATUS_CODE_EXCEPTIONS = [
+        400 => Exceptions\BadRequestException::class,
+        401 => Exceptions\UnauthorizedException::class,
+        402 => Exceptions\PaymentRequiredException::class,
+        403 => Exceptions\ForbiddenException::class,
+        404 => Exceptions\ResourceNotFoundException::class,
+        405 => Exceptions\MethodNotAllowedException::class,
+        406 => Exceptions\NotAcceptableException::class,
+        407 => Exceptions\ProxyAuthenticationRequiredException::class,
+        408 => Exceptions\RequestTimeoutException::class,
+        409 => Exceptions\ConflictException::class,
+        410 => Exceptions\GoneException::class,
+        411 => Exceptions\LengthRequiredException::class,
+        412 => Exceptions\PreconditionFailedException::class,
+        413 => Exceptions\ContentTooLargeException::class,
+        414 => Exceptions\UriTooLongException::class,
+        415 => Exceptions\UnsupportedMediaTypeException::class,
+        416 => Exceptions\RangeNotSatisfiableException::class,
+        417 => Exceptions\ExpectationFailedException::class,
+        418 => Exceptions\ImATeapotException::class,
+        421 => Exceptions\MisdirectedRequestException::class,
+        422 => Exceptions\UnprocessableContentException::class,
+        425 => Exceptions\TooEarlyException::class,
+        426 => Exceptions\UpgradeRequiredException::class,
+        428 => Exceptions\PreconditionRequiredException::class,
+        429 => Exceptions\TooManyRequestsException::class,
+        431 => Exceptions\RequestHeaderFieldsTooLargeException::class,
+        451 => Exceptions\UnavailableForLegalReasonsException::class,
+        497 => Exceptions\HTTPRequestSentToHTTPSPortException::class,
+        500 => Exceptions\InternalServerErrorException::class,
+        501 => Exceptions\NotImplementedException::class,
+        502 => Exceptions\BadGatewayException::class,
+        503 => Exceptions\ServiceUnavailableException::class,
+        504 => Exceptions\GatewayTimeoutException::class,
+        505 => Exceptions\HTTPVersionNotSupportedException::class,
+    ];
+
     /**
      * success
      *  StatusCode: (200) 
@@ -275,17 +317,21 @@ abstract class ResponseManager
             $response = new Response();
 
             // Check statusCode
-            if($exception->statusCode < 100 || $exception->statusCode >= 600)
-                $exception->statusCode = 500;
+            $statusCode = $exception->statusCode === null || $exception->statusCode < 100 || $exception->statusCode >= 600 ? 500 : $exception->statusCode;
 
-            // Check if errors were set
-            if($exception->statusCode > 201)
+            // Add data to response
+            $data = $exception->data === null ? array() : $exception->data;
+
+            // Set error details
+            if($statusCode >= 400)
             {
-                // Set error details
-                $response->setError($exception->statusCode, $exception->error, $exception->errorDescription);
-
-                // Add data to response
-                $response->addParameters($exception->data === null ? array() : $exception->data);
+                $response->setError($statusCode, $exception->error, $exception->errorDescription);
+                $response->addParameters($data);
+            }
+            else
+            {
+                $response->setStatusCode($statusCode);
+                $response->addParameters($data);
             }
 
             return $response;
@@ -341,21 +387,19 @@ abstract class ResponseManager
             unset($data["errorDescription"]);
 
         // Resolve
-        switch(true)
-        {
-            case $statusCode === 400; return new BadRequestException($error, $errorDescription, $data);
-            case $statusCode === 400; return new BadRequestException($error, $errorDescription, $data);
-            case $statusCode === 401; return new UnauthorizedException($error, $errorDescription, $data);
-            case $statusCode === 403; return new ForbiddenException($error, $errorDescription, $data);
-            case $statusCode === 404; return new ResourceNotFoundException($error, $errorDescription, $data);
-            case $statusCode === 405; return new MethodNotAllowedException($error, $errorDescription, $data);
-            case $statusCode === 406; return new NotAcceptableException($error, $errorDescription, $data);
-            case $statusCode === 409; return new ConflictException($error, $errorDescription, $data);
-            case $statusCode === 497; return new HTTPRequestSentToHTTPSPortException($error, $errorDescription, $data);
-            case $statusCode < 100 || $statusCode >= 500; return new InternalServerErrorException($error, $errorDescription, $data);
-            default: new \Exception(self::responseToString($response));
-        }
-        
-        return null;
+        $exceptionClass = self::STATUS_CODE_EXCEPTIONS[$statusCode] ?? null;
+
+        if($exceptionClass !== null)
+            return new $exceptionClass($error, $errorDescription, $data);
+
+        // Unmapped client errors keep their status code
+        if($statusCode >= 400 && $statusCode < 500)
+            return new HTTPRequestException($statusCode, $error, $errorDescription, $data);
+
+        // Unmapped server errors and invalid status codes
+        if($statusCode < 100 || $statusCode >= 500)
+            return new InternalServerErrorException($error, $errorDescription, $data);
+
+        return new \Exception(self::responseToString($response));
     }
 }
