@@ -63,6 +63,98 @@ final class HTTPRequestExceptionTest extends TestCase
         $this->assertEquals('{"statusCode":409,"error":"error","errorDescription":"description","key":"value"}', $output);
     }
 
+    /**
+     * @runInSeparateProcess
+     */
+    public function testSendXml()
+    {
+        $exception = new HTTPRequestException(409, "error", "<b>description</b>", ["key" => "value", "list" => [1, 2], "flag" => false]);
+        ob_start();
+        $exception->sendXml();
+        $output = ob_get_clean();
+        $this->assertEquals(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root><statusCode>409</statusCode><error>error</error><errorDescription>&lt;b&gt;description&lt;/b&gt;</errorDescription><key>value</key><list><item>1</item><item>2</item></list><flag>false</flag></root>\n",
+            $output
+        );
+    }
+
+    /**
+     * @runInSeparateProcess
+     */
+    public function testSendDispatchesOnFormat()
+    {
+        $exception = new HTTPRequestException(400, "error", "description");
+
+        ob_start();
+        $exception->send();
+        $this->assertEquals('{"statusCode":400,"error":"error","errorDescription":"description"}', ob_get_clean());
+
+        ob_start();
+        $exception->send("XML");
+        $this->assertStringContainsString("<root><statusCode>400</statusCode>", ob_get_clean());
+    }
+
+    public function testProblemDetails()
+    {
+        HTTPRequestException::$useRfc9457 = true;
+
+        try
+        {
+            $exception = new HTTPRequestException(404, "routeNotFound", "Resource could not be found", ["key" => "value", "status" => 200, "type" => "x"]);
+
+            $this->assertSame([
+                "type" => "about:blank",
+                "title" => "Not Found",
+                "status" => 404,
+                "detail" => "Resource could not be found",
+                "instance" => "urn:uuid:1",
+                "error" => "routeNotFound",
+                "key" => "value",
+            ], $exception->toArray("urn:uuid:1"));
+
+            // Members without a value are left out, an unknown status has no title
+            $this->assertSame(["type" => "about:blank", "title" => "Internal Server Error", "status" => 500], (new HTTPRequestException())->toArray());
+            $this->assertSame(["type" => "about:blank", "status" => 599], (new HTTPRequestException(599))->toArray());
+        }
+        finally
+        {
+            HTTPRequestException::$useRfc9457 = false;
+        }
+    }
+
+    /**
+     * @runInSeparateProcess
+     */
+    public function testSendProblemXml()
+    {
+        HTTPRequestException::$useRfc9457 = true;
+
+        $exception = new HTTPRequestException(409, "conflict", "description");
+        ob_start();
+        $exception->send("xml", "urn:uuid:1");
+        $xml = simplexml_load_string(ob_get_clean());
+
+        $this->assertSame("problem", $xml->getName());
+        $this->assertSame(["" => "urn:ietf:rfc:7807"], $xml->getDocNamespaces());
+
+        $members = $xml->children("urn:ietf:rfc:7807");
+        $this->assertSame("Conflict", (string) $members->title);
+        $this->assertSame("409", (string) $members->status);
+        $this->assertSame("urn:uuid:1", (string) $members->instance);
+        $this->assertSame("conflict", (string) $members->error);
+    }
+
+    public function testInstanceIsOnlyUsedForProblemDetails()
+    {
+        $this->assertArrayNotHasKey("instance", (new HTTPRequestException(400, "error"))->toArray("urn:uuid:1"));
+    }
+
+    public function testSendRejectsAnUnknownFormat()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new HTTPRequestException(400, "error"))->send("yaml");
+    }
+
     public static function exceptionProvider() : array
     {
         return [
