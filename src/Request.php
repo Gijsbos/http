@@ -112,10 +112,14 @@ class Request implements RequestInterface
      */
     public function headers($name, $default = null)
     {
-        $headers = array_change_key_case($this->headers);
-        $name = mb_strtolower($name);
+        // Headers from $_SERVER use underscores (ACCEPT_LANGUAGE), so "Accept-Language" and "accept_language" both match
+        $normalize = fn(string $key) => str_replace("-", "_", mb_strtolower($key));
 
-        return isset($headers[$name]) ? $headers[$name] : $default;
+        foreach($this->headers as $key => $value)
+            if($normalize((string) $key) === $normalize($name))
+                return $value;
+
+        return $default;
     }
 
     /**

@@ -78,22 +78,15 @@ class HTTPRequestHandle
     public static function createHash(string $uri, null|string|array $params = null, null|string|array $headers = null)
     {
         $hashSeed = [$uri];
-        
-        if(is_array($params))
+
+        foreach([$params, $headers] as $values)
         {
-            foreach($params as $key => $value)
-                $hashSeed[] = "$key-$value";
+            if(is_string($values))
+                $hashSeed[] = $values;
+            else if(is_array($values))
+                foreach($values as $key => $value)
+                    $hashSeed[] = $key . "-" . (is_scalar($value) || $value === null ? $value : json_encode($value)); // Arrays and CURLFile uploads can't be cast to string
         }
-        else if(is_string($params))
-            $hashSeed[] = $params;
-            
-        if(is_array($headers))
-        {
-            foreach($headers as $key => $value)
-                $hashSeed[] = "$key-$value";
-        }
-        else if(is_string($headers))
-            $hashSeed[] = $headers;
 
         return hash('xxh3', implode("|", $hashSeed));
     }

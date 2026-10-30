@@ -7,8 +7,14 @@ use CurlHandle;
 
 /**
  * HTTPRequestPool
- *  Handles multiple http requests (curl) at the same time.
- *  Can be optimized when http requests include a request hash, calling requests that are identical only once.
+ *  Executes multiple http requests at the same time (curl multi).
+ *
+ *      $pool = new HTTPRequestPool();
+ *      $pool->add(HTTPRequest::get(["uri" => "..."], HTTP_REQUEST_HANDLE), fn(Response $r) => ...);
+ *      $results = $pool->execute(); // Response per index, in the order the requests were added
+ *
+ *  optimizeRequests: identical requests (same method, url, data and headers) are sent once,
+ *  each caller still gets its own index and callback.
  */
 class HTTPRequestPool
 {
@@ -18,37 +24,32 @@ class HTTPRequestPool
     private $curlMultiHandle;
 
     /**
-     * @var \CurlHandle[] $handles
+     * @var (CurlHandle|null)[] $handles
+     *  Null for a duplicate that is served by another handle
      */
-    private $handles;
+    private array $handles = [];
 
     /**
-     * @var mixed[] $callbacks
-     *  An array of callback arrays
+     * @var array[] $callbacks
+     *  Per handle index: [["index" => int, "callback" => ?callable], ...]
      */
-    private $callbacks;
+    private array $callbacks = [];
 
     /**
-     * @var mixed[] $requestHashes
+     * @var (string|null)[] $requestHashes
      */
-    private $requestHashes;
+    private array $requestHashes = [];
 
     /**
-     * @var array[] $results
+     * @var array $results
      */
-    private $results;
-
-    /**
-     * @var callable[] $onResultReceived
-     */
-    private $onResultReceived;
+    private array $results = [];
 
     /**
      * @var bool $optimizeRequests
-     *  Will remove duplicate requests from the pool.
-     *  This only works when HTTPRequestHandle objects are passed to the 'add' method.
+     *  Only works with HTTPRequestHandle objects or when a hash is passed to add()
      */
-    private $optimizeRequests;
+    private bool $optimizeRequests;
 
     /**
      * __construct
@@ -56,44 +57,15 @@ class HTTPRequestPool
     public function __construct(bool $optimizeRequests = false)
     {
         $this->curlMultiHandle = curl_multi_init();
-        $this->handles = [];
-        $this->callbacks = [];
-        $this->requestHashes = [];
-        $this->results = [];
-        $this->onResultReceived = [];
         $this->optimizeRequests = $optimizeRequests;
     }
 
     /**
-     * getHandles
+     * create
      */
-    public function getHandles()
+    public static function create(bool $optimizeRequests = false)
     {
-        return $this->handles;
-    }
-
-    /**
-     * getCallbacks
-     */
-    public function getCallbacks()
-    {
-        return $this->callbacks;
-    }
-
-    /**
-     * addOnResultReceived
-     */
-    public function addOnResultReceived(callable $callback) : void
-    {
-        $this->onResultReceived[] = $callback;
-    }
-
-    /**
-     * getResults
-     */
-    public function getResults()
-    {
-        return $this->results;
+        return new self($optimizeRequests);
     }
 
     /**
@@ -113,206 +85,100 @@ class HTTPRequestPool
     }
 
     /**
-     * getExistingHandleIndex
-     */
-    private function getExistingHandleIndex(null|string $hash = null)
-    {
-        if($hash === null)
-            return false;
-
-        if(in_array($hash, $this->requestHashes))
-            return array_search($hash, $this->requestHashes);
-
-        return false;
-    }
-
-    /**
      * add
-     * 
-     * @param HTTPRequestHandle|CurlHandle $handle used for multi request
-     * @param callback $callback function called after completion
-     * @param string $hash CurlHandle request hash used for optimization
-     * @return int handle index
+     *
+     * @param HTTPRequestHandle|CurlHandle $handle - A HTTPRequestHandle provides its own callback and hash, the parameters override them
+     * @param callable $callback - Called with the Response when the request is done
+     * @param string $hash - Request hash used by optimizeRequests
+     * @return int index of the result
      */
     public function add(HTTPRequestHandle | CurlHandle $handle, null|callable $callback = null, null|string $hash = null)
     {
-        // If an HTTP Request Handle is added, if will assume its values for callback and hash, function parameters will act as override
         if($handle instanceof HTTPRequestHandle)
         {
-            if($callback === null)
-                $callback = $handle->getCallback();
-
-            if($hash === null)
-                $hash = $handle->getHash();
-
+            $callback ??= $handle->getCallback();
+            $hash ??= $handle->getHash();
             $handle = $handle->getHandle();
         }
 
-        // Get handle count
         $index = count($this->handles);
 
-        // Optimize
-        if($this->optimizeRequests)
+        // Duplicate request: no new handle, the result of the existing handle is also stored at this index
+        $existingIndex = $this->optimizeRequests && $hash !== null ? array_search($hash, $this->requestHashes, true) : false;
+
+        if($existingIndex !== false)
         {
-            // Get id
-            $existingHandleIndex = $this->getExistingHandleIndex($hash);
+            $this->handles[$index] = null;
+            $this->requestHashes[$index] = null;
+            $this->callbacks[$existingIndex][] = ["index" => $index, "callback" => $callback];
 
-            // An existing request handle has been found, with its index returned.
-            if($existingHandleIndex !== false)
-            {
-                // Add empty handle to make sure the index is used
-                $this->handles[$index] = null;
-
-                // Add callback to existing handle
-                $this->callbacks[$existingHandleIndex][] = [
-                    "index" => $index,
-                    "callback" => $callback,
-                ];
-
-                // Add empty request hash so it will not be used in further lookups
-                $this->requestHashes[] = null;
-
-                // Return index
-                return $index;
-            }
+            return $index;
         }
 
-        // Add handle with an index, used to find the handle later on
         $this->handles[$index] = $handle;
-
-        // Add callback to callbacks array; this is executed when the handle resolves and allows multiple callbacks to act on a single handle.
-        $this->callbacks[$index] = [
-            [
-                "index" => $index, // Index is added so we can set the result of multiple requests when closing the handle
-                "callback" => $callback,
-            ]
-        ];
-
-        // Add a hash for lookup
         $this->requestHashes[$index] = $hash;
+        $this->callbacks[$index] = [["index" => $index, "callback" => $callback]];
 
-        // Add to multi curl handle
-        $addResult = curl_multi_add_handle($this->curlMultiHandle, $handle);
+        curl_multi_add_handle($this->curlMultiHandle, $handle);
 
-        // Return index
         return $index;
     }
 
     /**
-     * addResultGroup
-     *  Adds a HTTPRequestResultGroup and callback for group result
+     * execute
+     *
+     * @return array Response per index
      */
-    public function addResultGroup(HTTPRequestResultGroup $httpRequestResultGroup, null|callable $callback = null) : void
+    public function execute(null|int $flags = null)
     {
-        $indices = [];
+        $active = 0;
 
-        // Add handles to pool, store indices for retrieving results later
-        foreach($httpRequestResultGroup->getHandles() as $handle)
-            $indices[] = $this->add($handle);
-
-        // Set callback if overwrite has not been provided
-        if($callback === null && $httpRequestResultGroup->hasCallback())
-            $callback = $httpRequestResultGroup->getCallback();
-
-        // Add onResultReceived callable, extracting relevant results using indices
-        $this->addOnResultReceived(function($results) use ($indices, $callback)
+        // Run until all transfers are done; select() waits for network activity instead of spinning.
+        // select() can return -1 right away on some systems, sleep briefly then to avoid a 100% CPU busy loop.
+        do
         {
-            // Filter out relevant results
-            $groupResults = array_filter_keys($results, $indices);
+            $status = curl_multi_exec($this->curlMultiHandle, $active);
 
-            // Sort keys
-            $groupResults = array_sort_keys($groupResults);
+            if($active && curl_multi_select($this->curlMultiHandle, 1.0) === -1)
+                usleep(1000);
+        }
+        while($active && $status === CURLM_OK);
 
-            // Execute
-            if($callback !== null)
-                $callback($groupResults);
-        });
-    }
+        $this->closeHandles($flags);
 
-    /**
-     * executeOnResultReceived
-     */
-    private function executeOnResultReceived()
-    {
-        foreach($this->onResultReceived as $callback)
-            $callback($this->results);
+        return $this->results;
     }
 
     /**
      * closeHandles
      */
-    private function closeHandles(null|int $flags = null)
+    private function closeHandles(null|int $flags = null) : void
     {
+        // curl_error() is empty for pooled handles, the curl result code of each handle is only available here
+        $errnos = [];
+        while($info = curl_multi_info_read($this->curlMultiHandle))
+            $errnos[spl_object_id($info["handle"])] = $info["result"];
+
         foreach($this->handles as $i => $handle)
         {
-            if($handle !== null)
+            if($handle === null)
+                continue;
+
+            curl_multi_remove_handle($this->curlMultiHandle, $handle);
+
+            $result = HTTPRequest::handleCurlResult($handle, curl_multi_getcontent($handle) ?? "", $flags, $errnos[spl_object_id($handle)] ?? 0);
+
+            foreach($this->callbacks[$i] as ["index" => $index, "callback" => $callback])
             {
-                // Remove handle
-                curl_multi_remove_handle($this->curlMultiHandle, $handle);
+                $this->results[$index] = $result;
 
-                // Store results
-                $result = HTTPRequest::handleCurlResult($handle, curl_multi_getcontent($handle), $flags);
-
-                // Iterate over callbacks
-                foreach($this->callbacks[$i] as $callbackInfo)
-                {
-                    $index = $callbackInfo["index"];
-                    $callback = $callbackInfo["callback"];
-
-                    $this->results[$index] = $result;
-
-                    if($callback)
-                        $callback($result);
-                }
+                if($callback)
+                    $callback($result);
             }
         }
 
-        // Close multi curl
         curl_multi_close($this->curlMultiHandle);
 
-        // Execute callbacks
-        $this->executeOnResultReceived();
-    }
-
-    /**
-     * execute
-     */
-    public function execute(null|int $flags = null)
-    {
-        $active = null;
-
-        // Execute the handles
-        do
-        {
-            $mrc = curl_multi_exec($this->curlMultiHandle, $active);
-        }
-        while ($mrc == CURLM_CALL_MULTI_PERFORM);
-
-        // Wait a while longer
-        while ($active && $mrc == CURLM_OK)
-        {
-            if (curl_multi_select($this->curlMultiHandle) != -1)
-            {
-                do
-                {
-                    $mrc = curl_multi_exec($this->curlMultiHandle, $active);
-                }
-                while ($mrc == CURLM_CALL_MULTI_PERFORM);
-            }
-        }
-
-        // Close handles
-        $this->closeHandles($flags);
-
-        // Return result
-        return $this->results;
-    }
-
-    /**
-     * create
-     */
-    public static function create(bool $optimizeRequests = false)
-    {
-        return new self($optimizeRequests);
+        ksort($this->results);
     }
 }

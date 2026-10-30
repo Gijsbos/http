@@ -6,7 +6,6 @@ namespace WDS;
 use gijsbos\Http\Http\HTTPRequest;
 use gijsbos\Http\Http\HTTPRequestHandle;
 use gijsbos\Http\Http\HTTPRequestPool;
-use gijsbos\Http\Http\HTTPRequestResultGroup;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -44,13 +43,12 @@ final class HTTPRequestPoolTest extends TestCase
         $results = $pool->execute();
         $this->assertEquals("a", $this->getId($results[0]));
         $this->assertEquals("b", $this->getId($results[1]));
-        $this->assertEquals($results, $pool->getResults());
     }
 
     public function testAddCurlHandle()
     {
         $pool = new HTTPRequestPool();
-        $pool->add(HTTPRequest::get(["uri" => self::ECHO_URL, "data" => ["id" => "curl"]], CURL_HANDLE));
+        $pool->add(HTTPRequest::get(["uri" => self::ECHO_URL, "data" => ["id" => "curl"]], HTTP_REQUEST_HANDLE)->getHandle());
         $this->assertEquals("curl", $this->getId($pool->execute()[0]));
     }
 
@@ -59,9 +57,8 @@ final class HTTPRequestPoolTest extends TestCase
         $received = [];
         $pool = new HTTPRequestPool();
         $pool->add($this->createHandle("a"), function($response) use(&$received) { $received[] = $this->getId($response); });
-        $pool->addOnResultReceived(function($results) use(&$received) { $received[] = count($results); });
         $pool->execute();
-        $this->assertEquals(["a", 1], $received);
+        $this->assertEquals(["a"], $received);
     }
 
     public function testHandleCallbackIsUsed()
@@ -84,31 +81,12 @@ final class HTTPRequestPoolTest extends TestCase
         $pool->add($this->createHandle("a"), $callback);
         $pool->add($this->createHandle("b"), $callback);
 
-        // Duplicate is stored as empty handle
-        $this->assertNull($pool->getHandles()[1]);
 
         $results = $pool->execute();
         $this->assertEquals(3, $calls);
         $this->assertEquals("a", $this->getId($results[0]));
         $this->assertEquals("a", $this->getId($results[1]));
         $this->assertEquals("b", $this->getId($results[2]));
-    }
-
-    public function testResultGroup()
-    {
-        $groupResults = null;
-
-        $group = new HTTPRequestResultGroup();
-        $group->add($this->createHandle("a"));
-        $group->add($this->createHandle("b"));
-        $group->setCallback(function($results) use(&$groupResults) { $groupResults = $results; });
-
-        $pool = new HTTPRequestPool();
-        $pool->add($this->createHandle("other"));
-        $pool->addResultGroup($group);
-        $pool->execute();
-
-        $this->assertEquals(["a", "b"], array_map(fn($r) => $this->getId($r), array_values($groupResults)));
     }
 
     public function testFailedRequestReturnsErrorResponse()
@@ -122,12 +100,6 @@ final class HTTPRequestPoolTest extends TestCase
         $this->assertEquals("a", $this->getId($results[1]));
     }
 
-    public function testDebugFlag()
-    {
-        $response = HTTPRequest::get(["uri" => self::ECHO_URL], HTTP_REQUEST_DEBUG);
-        $this->assertEquals(self::ECHO_URL, $response->getParameter("errorURI"));
-    }
-
     public function testOptimizedDuplicateReturnsOwnIndex()
     {
         $pool = new HTTPRequestPool(true);
@@ -136,30 +108,30 @@ final class HTTPRequestPoolTest extends TestCase
         $this->assertEquals(2, $pool->add($this->createHandle("b")));
     }
 
-    public function testOptimizedResultGroupGetsOwnResults()
+    public function testOptimizeRequestsKeepsDifferentMethodsApart()
     {
-        $groupResults = null;
-
+        // Same url and headers, but a GET and a DELETE are different requests
         $pool = new HTTPRequestPool(true);
-        $pool->add($this->createHandle("a"));
-        $pool->add($this->createHandle("b"));
-
-        // Group contains a duplicate of 'b', its result should be 'b'
-        $group = new HTTPRequestResultGroup();
-        $group->add($this->createHandle("b"));
-        $pool->addResultGroup($group, function($results) use(&$groupResults) { $groupResults = $results; });
-        $pool->execute();
-
-        $this->assertEquals(["b"], array_map(fn($r) => $this->getId($r), array_values($groupResults)));
+        $pool->add(HTTPRequest::get(["uri" => self::ECHO_URL], HTTP_REQUEST_HANDLE));
+        $pool->add(HTTPRequest::delete(["uri" => self::ECHO_URL], HTTP_REQUEST_HANDLE));
+        $results = $pool->execute();
+        $this->assertEquals("GET", $results[0]->getParameter("method"));
+        $this->assertEquals("DELETE", $results[1]->getParameter("method"));
     }
 
-    public function testResultGroupWithoutCallback()
+    public function testFailedRequestDescribesCurlError()
     {
-        $group = new HTTPRequestResultGroup();
-        $group->add($this->createHandle("a"));
-
         $pool = new HTTPRequestPool();
-        $pool->addResultGroup($group);
-        $this->assertCount(1, $pool->execute());
+        $pool->add(HTTPRequest::get(["uri" => "http://127.0.0.1:1/"], HTTP_REQUEST_HANDLE));
+        $this->assertStringStartsWith("7 ", $pool->execute()[0]->getErrorDescription());
+    }
+
+    public function testRawResponseInPool()
+    {
+        $pool = new HTTPRequestPool();
+        $pool->add(HTTPRequest::get(["uri" => self::ECHO_URL, "data" => ["text" => "hi"]], HTTP_REQUEST_HANDLE | RAW_RESPONSE));
+        $result = $pool->execute()[0];
+        $this->assertInstanceOf(\gijsbos\Http\RawResponse::class, $result);
+        $this->assertEquals("hi", $result->getBody());
     }
 }

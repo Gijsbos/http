@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace WDS;
 
 use gijsbos\Http\Http\HTTPRequest;
+use gijsbos\Http\RawResponse;
 use gijsbos\Http\RequestMethod;
 use PHPUnit\Framework\TestCase;
 
@@ -122,57 +123,12 @@ final class HTTPRequestTest extends TestCase
     //     $this->assertEquals($input, $result);
     // }
 
-    public function testAddBaseURL()
-    {
-        // Add base url
-        HTTPRequest::addBaseURL('test', "http://localhost/http/");
-
-        // Set input
-        $returnValue = json_encode(array(
-            "test" => $input = "test input"
-        ));
-
-        // Execute
-        $response = HTTPRequest::test()->get(array(
-            "uri" => "/tests/http/HTTPTestController.php",
-            "data" => array(
-                "returnValue" => $returnValue
-            )
-        ));
-        $result = $response->getParameter("test");
-        $this->assertEquals($input, $result);
-    }
-
-    public function testBaseURLNotFound()
-    {
-        $this->expectExceptionMessage("Could not resolve base url 'notfound'");
-
-        // Add base url
-        HTTPRequest::addBaseURL('test', "http://localhost/http/");
-
-        // Set input
-        $returnValue = json_encode(array(
-            "test" => $input = "test input"
-        ));
-
-        // Execute
-        $response = HTTPRequest::notfound()->get(array(
-            "uri" => "/tests/http/HTTPTestController.php",
-            "data" => array(
-                "returnValue" => $returnValue
-            )
-        ));
-    }
-
     const ECHO_URL = "http://localhost/http/tests/http/EchoController.php";
 
     protected function tearDown() : void
     {
         // Reset global state changed by tests
         HTTPRequest::$DEFAULT_URL = "";
-        HTTPRequest::$DEFAULT_FLAGS = null;
-        HTTPRequest::$DEFAULT_HEADERS = null;
-        HTTPRequest::$DEFAULT_OPTIONS = [];
     }
 
     /**
@@ -220,13 +176,6 @@ final class HTTPRequestTest extends TestCase
         $this->assertEquals("http://localhost/http", $request->getBaseURL());
     }
 
-    public function testBaseURLCallsAbsoluteURLOnOtherServer()
-    {
-        HTTPRequest::addBaseURL('test', "http://127.0.0.1/does-not-exist/");
-        $response = HTTPRequest::test()->get(["uri" => self::ECHO_URL]);
-        $this->assertEquals("GET", $response->getParameter("method"));
-    }
-
     /**
      * init
      */
@@ -251,19 +200,6 @@ final class HTTPRequestTest extends TestCase
     {
         $this->expectException(\TypeError::class);
         (new HTTPRequest())->init(["cURLOptions" => "invalid"]);
-    }
-
-    public function testDefaultFlagsAreCombined()
-    {
-        HTTPRequest::$DEFAULT_FLAGS = FOLLOW_LOCATION;
-        $request = new HTTPRequest(GET, "/", [], [], GET_REDIRECT_URI);
-        $this->assertEquals(FOLLOW_LOCATION | GET_REDIRECT_URI, $request->getFlags());
-    }
-
-    public function testDefaultFlagsWithoutFlags()
-    {
-        HTTPRequest::$DEFAULT_FLAGS = FOLLOW_LOCATION;
-        $this->assertEquals(FOLLOW_LOCATION, (new HTTPRequest())->getFlags());
     }
 
     public function testAddFlag()
@@ -300,15 +236,6 @@ final class HTTPRequestTest extends TestCase
         $this->assertEquals("127.0.0.1:8080", $request->getCURLOptions()[CURLOPT_PROXY]);
     }
 
-    public function testCreateFromArgs()
-    {
-        $request = HTTPRequest::createFromArgs(["type" => PUT, "uri" => "/a", "data" => ["k" => "v"], "headers" => "invalid"]);
-        $this->assertEquals(PUT, $request->getType());
-        $this->assertEquals("/a", $request->getURI());
-        $this->assertEquals(["k" => "v"], $request->getData());
-        $this->assertEquals([], $request->getHeaders());
-    }
-
     /**
      * convertToCURLHeaders
      */
@@ -342,31 +269,26 @@ final class HTTPRequestTest extends TestCase
     }
 
     /**
-     * createURLWithParams
+     * addQuery
      */
-    public function testCreateURLWithParams()
+    public function testAddQuery()
     {
-        $url = "http://localhost:8080/path";
-        $data = ["a" => "1", "b" => "x y"];
-        HTTPRequest::createURLWithParams($url, $data);
-        $this->assertEquals("http://localhost:8080/path?a=1&b=x+y", $url);
-        $this->assertEquals([], $data);
+        $this->assertEquals("http://localhost:8080/path?a=1&b=x+y", $this->invokePrivate(HTTPRequest::class, "addQuery", ["http://localhost:8080/path", ["a" => "1", "b" => "x y"]]));
     }
 
-    public function testCreateURLWithParamsMergesExistingQuery()
+    public function testAddQueryMergesExistingQuery()
     {
-        $url = "http://localhost/path?a=1";
-        $data = ["b" => "2"];
-        HTTPRequest::createURLWithParams($url, $data);
-        $this->assertEquals("http://localhost/path?b=2&a=1", $url);
+        $this->assertEquals("http://localhost/path?b=2&a=1", $this->invokePrivate(HTTPRequest::class, "addQuery", ["http://localhost/path?a=1", ["b" => "2"]]));
     }
 
-    public function testCreateURLWithParamsWithoutData()
+    public function testAddQueryWithoutData()
     {
-        $url = "http://localhost/path#frag";
-        $data = [];
-        HTTPRequest::createURLWithParams($url, $data);
-        $this->assertEquals("http://localhost/path#frag", $url);
+        $this->assertEquals("http://localhost/path#frag", $this->invokePrivate(HTTPRequest::class, "addQuery", ["http://localhost/path#frag", []]));
+    }
+
+    public function testAddQueryRawString()
+    {
+        $this->assertEquals("http://localhost/path?a=1&b=2", $this->invokePrivate(HTTPRequest::class, "addQuery", ["http://localhost/path?a=1", "b=2"]));
     }
 
     /**
@@ -398,15 +320,6 @@ final class HTTPRequestTest extends TestCase
         $response = $this->invokePrivate(HTTPRequest::class, "getResponseObject", ["", 204, ""]);
         $this->assertEquals(204, $response->getStatusCode());
         $this->assertEquals([], $response->getParameters());
-    }
-
-    /**
-     * getErrnoByCode
-     */
-    public function testGetErrnoByCode()
-    {
-        $this->assertEquals("COULDNT_RESOLVE_HOST", HTTPRequest::getErrnoByCode(6)["short"]);
-        $this->assertFalse(HTTPRequest::getErrnoByCode(9999));
     }
 
     /**
@@ -504,11 +417,6 @@ final class HTTPRequestTest extends TestCase
         $this->assertEquals(self::ECHO_URL, $response->getParameter("redirectURI"));
     }
 
-    public function testCURLHandleFlag()
-    {
-        $this->assertInstanceOf(\CurlHandle::class, HTTPRequest::get(["uri" => self::ECHO_URL], CURL_HANDLE));
-    }
-
     public function testHTTPRequestHandleFlag()
     {
         $this->assertInstanceOf(\gijsbos\Http\Http\HTTPRequestHandle::class, HTTPRequest::post(["uri" => self::ECHO_URL], HTTP_REQUEST_HANDLE));
@@ -516,7 +424,7 @@ final class HTTPRequestTest extends TestCase
 
     public function testConnectionFailureThrows()
     {
-        $this->expectExceptionMessage("Curl failed: 7 COULDNT_CONNECT");
+        $this->expectExceptionMessage("Curl failed: 7 ");
         HTTPRequest::get(["uri" => "http://127.0.0.1:1/"]);
     }
 
@@ -531,26 +439,6 @@ final class HTTPRequestTest extends TestCase
         $request = new HTTPRequest(null, null, [], ["X-A" => "1"]);
         $request->removeHeader("X-A");
         $this->assertEquals([], $request->getHeaders());
-    }
-
-    public function testRequestHeadersOverrideDefaultHeaders()
-    {
-        HTTPRequest::$DEFAULT_HEADERS = ["Accept" => "text/html"];
-        $request = new HTTPRequest(GET, "/", [], ["Accept" => "application/json"]);
-        $this->assertEquals("application/json", $request->getHeaders()["Accept"]);
-    }
-
-    public function testRequestOptionsOverrideDefaultOptions()
-    {
-        HTTPRequest::$DEFAULT_OPTIONS = [CURLOPT_TIMEOUT => 5];
-        $request = new HTTPRequest(GET, "/", [], [], null, [CURLOPT_TIMEOUT => 60]);
-        $this->assertEquals(60, $request->getCURLOptions()[CURLOPT_TIMEOUT]);
-    }
-
-    public function testCallPutSendsPUT()
-    {
-        $response = (new HTTPRequest())->callPut(self::ECHO_URL, ["a" => "1"], [], []);
-        $this->assertEquals("PUT", $response->getParameter("method"));
     }
 
     public function testJSONHeaderWithoutSpace()
@@ -571,12 +459,9 @@ final class HTTPRequestTest extends TestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function testCreateURLWithParamsKeepsCredentialsAndFragment()
+    public function testAddQueryKeepsCredentialsAndFragment()
     {
-        $url = "http://user:pw@localhost/path#frag";
-        $data = ["a" => "1"];
-        HTTPRequest::createURLWithParams($url, $data);
-        $this->assertEquals("http://user:pw@localhost/path?a=1#frag", $url);
+        $this->assertEquals("http://user:pw@localhost/path?a=1#frag", $this->invokePrivate(HTTPRequest::class, "addQuery", ["http://user:pw@localhost/path#frag", ["a" => "1"]]));
     }
 
     public function testPrivateMethodsNotCallableFromOutside()
@@ -585,16 +470,68 @@ final class HTTPRequestTest extends TestCase
         (new HTTPRequest())->prependBaseURL("/x");
     }
 
-    public function testHttpRequestFunctionWithoutHeaders()
+    public function testGetResponseObjectTopLevelEmptyObject()
     {
-        $response = \gijsbos\Http\Http\http_request("GET", self::ECHO_URL);
-        $this->assertEquals("GET", $response->getParameter("method"));
+        $response = $this->invokePrivate(HTTPRequest::class, "getResponseObject", ['{}', 200, ""]);
+        $this->assertEquals([], $response->getParameters());
     }
 
-    public function testHttpRequestFunctionPATCHSendsBody()
+    /**
+     * Raw request bodies
+     */
+    public function testPOSTSendsRawStringBody()
     {
-        $response = \gijsbos\Http\Http\http_request("PATCH", self::ECHO_URL, ["a" => "1"], ["X-A" => "1"]);
-        $this->assertEquals("PATCH", $response->getParameter("method"));
-        $this->assertEquals("a=1", $response->getParameter("body"));
+        $body = '{"empty":{},"list":[]}';
+        $response = HTTPRequest::post(["uri" => self::ECHO_URL, "data" => $body, "headers" => ["Content-Type" => "application/json"]]);
+        $this->assertEquals($body, base64_decode($response->getParameter("bodyBase64")));
+    }
+
+    public function testDELETESendsRawStringBody()
+    {
+        $response = HTTPRequest::delete(["uri" => self::ECHO_URL, "data" => '{"id":5}', "headers" => ["Content-Type" => "application/json"]]);
+        $this->assertEquals("DELETE", $response->getParameter("method"));
+        $this->assertEquals('{"id":5}', base64_decode($response->getParameter("bodyBase64")));
+    }
+
+    public function testGETSendsRawStringAsQuery()
+    {
+        $response = HTTPRequest::get(["uri" => self::ECHO_URL, "data" => "a=1&b=2"]);
+        $this->assertEquals(["a" => "1", "b" => "2"], (array) $response->getParameter("query"));
+    }
+
+    public function testAddDataOnRawStringThrows()
+    {
+        $this->expectException(\LogicException::class);
+        (new HTTPRequest(POST, "/", "raw"))->addData("a", "1");
+    }
+
+    /**
+     * RAW_RESPONSE
+     */
+    public function testRawResponseKeepsBodyAndHeaders()
+    {
+        $response = HTTPRequest::get(["uri" => self::ECHO_URL, "data" => ["text" => "hello", "statusCode" => "202"]], RAW_RESPONSE);
+        $this->assertInstanceOf(RawResponse::class, $response);
+        $this->assertEquals(202, $response->getStatusCode());
+        $this->assertEquals("hello", $response->getBody());
+        $this->assertEquals("hello", $response->getResponseBody());
+        $this->assertStringStartsWith("text/plain", $response->getHttpHeader("Content-Type"));
+        $this->assertNull($response->getHttpHeader("Content-Length"));
+        $this->assertNull($response->getHttpHeader("Transfer-Encoding"));
+    }
+
+    public function testRawResponseJSONHasParametersAndNoErrorURI()
+    {
+        $response = HTTPRequest::get(["uri" => self::ECHO_URL, "data" => ["statusCode" => "404"]], RAW_RESPONSE);
+        $this->assertEquals(404, $response->getStatusCode());
+        $this->assertEquals("GET", $response->getParameter("method"));
+        $this->assertNull($response->getParameter("errorURI"));
+        $this->assertStringStartsWith('{"method":"GET"', $response->getBody());
+    }
+
+    public function testRawResponseConnectionFailureThrows()
+    {
+        $this->expectExceptionMessage("Curl failed: 7 ");
+        HTTPRequest::get(["uri" => "http://127.0.0.1:1/"], RAW_RESPONSE);
     }
 }

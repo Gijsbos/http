@@ -6,7 +6,10 @@ namespace gijsbos\Http\Http;
 use gijsbos\Http\Request;
 
 /**
- * HTTPRequest
+ * HTTPRequestLog
+ *  Logs an incoming request to the PHP error log, secrets masked.
+ *
+ *  Log levels: 1 = method + uri (+ fields), 2 = + data, 3 = + headers
  */
 class HTTPRequestLog
 {
@@ -15,9 +18,6 @@ class HTTPRequestLog
     private array $data;
     private array $headers;
     private array $fields;
-    private string $format;
-    private string $function;
-    private null|string $prefix;
 
     /**
      * __construct
@@ -29,82 +29,15 @@ class HTTPRequestLog
         $this->data = $data;
         $this->headers = $headers;
         $this->fields = [];
-        $this->format = 'default';
-        $this->prefix = null;
-        $this->function = 'error_log';
-    }
-
-    /**
-     * setPrefix
-     */
-    public function setPrefix(string $prefix) : void
-    {
-        $this->prefix = $prefix;
     }
 
     /**
      * setFields
+     *  Extra key/values added after method and uri
      */
     public function setFields(array $fields) : void
     {
         $this->fields = $fields;
-    }
-
-    /**
-     * addField
-     */
-    public function addField(string $name, string $value) : void
-    {
-        $this->fields[$name] = $value;
-    }
-
-    /**
-     * prependField
-     */
-    public function prependField(string $name, string $value) : void
-    {
-        $fields = $this->fields;
-        $this->fields = array_merge([$name => $value], $fields);
-    }
-
-    /**
-     * addOrigin
-     */
-    public function addOrigin(string $origin) : void
-    {
-        $this->addField('origin', $origin);
-    }
-
-    /**
-     * addFrom
-     */
-    public function addFrom(string $from) : void
-    {
-        $this->addField('from', $from);
-    }
-
-    /**
-     * addTo
-     */
-    public function addTo(string $to) : void
-    {
-        $this->addField('to', $to);
-    }
-
-    /**
-     * setFormat
-     */
-    public function setFormat(string $format) : void
-    {
-        $this->format = $format;
-    }
-
-    /**
-     * setFunction
-     */
-    public function setFunction(string $function) : void
-    {
-        $this->function = $function;
     }
 
     /**
@@ -114,58 +47,18 @@ class HTTPRequestLog
     {
         foreach($data as $key => $value)
         {
-            if(is_string($key))
-            {
-                if(
-                    str_contains(strtolower($key), "password")
-                    ||
-                    str_contains(strtolower($key), "pass")
-                    ||
-                    str_contains(strtolower($key), "secret")
-                    ||
-                    str_contains(strtolower($key), "token")
-                    ||
-                    str_contains(strtolower($key), "authorization")
-                )
-                {
-                    $data[$key] = "********";
-                }
-            }
-            else if(is_string($value))
-            {
-                $value = preg_replace("/Authorization:.*/i", "Authorization: ********", $value);
-                $data[$key] = preg_replace("/AUTHORIZATION=.*/i", "AUTHORIZATION= ********", $value);
-            }
+            // "pass" also covers "password"
+            if(is_string($key) && preg_match("/pass|secret|token|authorization/i", $key))
+                $data[$key] = "********";
+
+            // Nested data, e.g. {"user": {"password": ..}}
+            else if(is_array($value))
+                $data[$key] = self::applySecretFilter($value);
+
+            else if(is_int($key) && is_string($value))
+                $data[$key] = preg_replace(["/Authorization:.*/i", "/AUTHORIZATION=.*/i"], ["Authorization: ********", "AUTHORIZATION= ********"], $value);
         }
         return $data;
-    }
-
-    /**
-     * writeLog
-     */
-    private function writeLog(array $log)
-    {
-        $message = "";
-
-        // Select format
-        switch($this->format)
-        {
-            case 'json':
-                $message = json_encode($log);
-            break;
-            default:
-                $message = implode_key_value_array($log, "=", ", ", "[", "]");
-        }
-
-        // Add prefix
-        if(is_string($this->prefix))
-            $message = $this->prefix.$message;
-
-        // Log
-        $function = $this->function;
-
-        // Log
-        $function($message);
     }
 
     /**
@@ -173,38 +66,18 @@ class HTTPRequestLog
      */
     public function logRequest(int $logLevel)
     {
-        if($logLevel > 0)
-        {
-            $log = [];
+        if($logLevel <= 0)
+            return;
 
-            // Add method and uri
-            $log["type"] = $this->requestMethod;
-            $log["uri"] = $this->requestURI;
+        $log = ["type" => $this->requestMethod, "uri" => $this->requestURI] + $this->fields;
 
-            // Add fields
-            foreach($this->fields as $key => $value)
-                $log[$key] = $value;
-    
-            // Log data
-            if($logLevel >= 2)
-            {
-                if(count($this->data))
-                    $log["data"] = $this->applySecretFilter($this->data);
-            }
+        if($logLevel >= 2 && count($this->data))
+            $log["data"] = self::applySecretFilter($this->data);
 
-            // Log data
-            if($logLevel >= 3)
-            {
-                if(count($this->headers))
-                    $log["headers"] = $this->applySecretFilter($this->headers);
-            }
-    
-            // Log
-            if(count($log))
-            {
-                $this->writeLog($log);
-            }
-        }
+        if($logLevel >= 3 && count($this->headers))
+            $log["headers"] = self::applySecretFilter($this->headers);
+
+        error_log(implode_key_value_array($log, "=", ", ", "[", "]"));
     }
 
     /**
@@ -212,20 +85,11 @@ class HTTPRequestLog
      */
     public static function createFromGlobals()
     {
-        // Create from globals
         $request = Request::createFromGlobals();
 
-        // Get method
         $requestMethod = $request->server["REQUEST_METHOD"];
-        $requestURL = $request->server["REQUEST_URI"];
-
-        // Get data
         $data = $requestMethod == "POST" || $requestMethod == "PUT" ? $request->request : $request->query;
 
-        // Get headers
-        $headers = $request->headers;
-
-        // Create object
-        return new self($requestMethod, $requestURL, is_array($data) ? $data : [], is_array($headers) ? $headers : []);
+        return new self($requestMethod, $request->server["REQUEST_URI"], is_array($data) ? $data : [], is_array($request->headers) ? $request->headers : []);
     }
 }
