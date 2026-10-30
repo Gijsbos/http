@@ -22,7 +22,6 @@
         }
     },
     "require": {
-        "gijsbos/extfuncs": "^1.7",
-        "gijsbos/logging": "^1.4"
+        "gijsbos/extfuncs": "^1.7"
     }
 }

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b81b40734affbcb4f29682841cb72a77",
+    "content-hash": "6fe9423bedc24eece2c94b2be5b9acde",
     "packages": [
         {
             "name": "brick/math",
@@ -135,16 +135,16 @@
         },
         {
             "name": "gijsbos/extfuncs",
-            "version": "1.7",
+            "version": "1.7.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Gijsbos/extfuncs.git",
-                "reference": "98081a6e09af7fd5aadeaffb09dace45702c21bb"
+                "reference": "6b23eeec4c227cbc0d4c15a8f32b7c611735fe93"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Gijsbos/extfuncs/zipball/98081a6e09af7fd5aadeaffb09dace45702c21bb",
-                "reference": "98081a6e09af7fd5aadeaffb09dace45702c21bb",
+                "url": "https://api.github.com/repos/Gijsbos/extfuncs/zipball/6b23eeec4c227cbc0d4c15a8f32b7c611735fe93",
+                "reference": "6b23eeec4c227cbc0d4c15a8f32b7c611735fe93",
                 "shasum": ""
             },
             "require": {
@@ -180,71 +180,22 @@
             ],
             "support": {
                 "issues": "https://github.com/Gijsbos/extfuncs/issues",
-                "source": "https://github.com/Gijsbos/extfuncs/tree/1.7"
+                "source": "https://github.com/Gijsbos/extfuncs/tree/1.7.1"
             },
-            "time": "2026-09-26T05:41:30+00:00"
-        },
-        {
-            "name": "gijsbos/logging",
-            "version": "1.4",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/Gijsbos/logging.git",
-                "reference": "f336285d474a68a587656207512dfedd01ea62a9"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/Gijsbos/logging/zipball/f336285d474a68a587656207512dfedd01ea62a9",
-                "reference": "f336285d474a68a587656207512dfedd01ea62a9",
-                "shasum": ""
-            },
-            "require": {
-                "php": "^8.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^5.7 || ^9.0"
-            },
-            "type": "library",
-            "autoload": {
-                "files": [
-                    "src/Library.php"
-                ],
-                "psr-4": {
-                    "gijsbos\\Logging\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Gijs and contributors",
-                    "homepage": "https://github.com/gijsbos/logging/graphs/contributors"
-                }
-            ],
-            "description": "PHP Logging",
-            "keywords": [
-                "logging"
-            ],
-            "support": {
-                "issues": "https://github.com/Gijsbos/logging/issues",
-                "source": "https://github.com/Gijsbos/logging/tree/1.4"
-            },
-            "time": "2026-09-26T05:52:51+00:00"
+            "time": "2026-10-01T05:56:52+00:00"
         },
         {
             "name": "gijsbos/stringfuncs",
-            "version": "1.4",
+            "version": "1.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Gijsbos/stringfuncs.git",
-                "reference": "a9f547804fea1daea98bc9184206cc95f6437147"
+                "reference": "d7b7417b68443d378fb5f094ef3d6168076f02e9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Gijsbos/stringfuncs/zipball/a9f547804fea1daea98bc9184206cc95f6437147",
-                "reference": "a9f547804fea1daea98bc9184206cc95f6437147",
+                "url": "https://api.github.com/repos/Gijsbos/stringfuncs/zipball/d7b7417b68443d378fb5f094ef3d6168076f02e9",
+                "reference": "d7b7417b68443d378fb5f094ef3d6168076f02e9",
                 "shasum": ""
             },
             "require": {
@@ -278,9 +229,9 @@
             ],
             "support": {
                 "issues": "https://github.com/Gijsbos/stringfuncs/issues",
-                "source": "https://github.com/Gijsbos/stringfuncs/tree/1.4"
+                "source": "https://github.com/Gijsbos/stringfuncs/tree/1.4.1"
             },
-            "time": "2026-09-26T05:55:52+00:00"
+            "time": "2026-09-26T06:05:00+00:00"
         },
         {
             "name": "paragonie/random_compat",
@@ -1113,16 +1064,16 @@
         },
         {
             "name": "phpunit/phpunit",
-            "version": "9.6.37",
+            "version": "9.6.38",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "aceaa623912caf8e80bffea22fc4103a0a01565f"
+                "reference": "8b5f757e8e92071bfdbfa93943f94f84c4e31007"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/aceaa623912caf8e80bffea22fc4103a0a01565f",
-                "reference": "aceaa623912caf8e80bffea22fc4103a0a01565f",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/8b5f757e8e92071bfdbfa93943f94f84c4e31007",
+                "reference": "8b5f757e8e92071bfdbfa93943f94f84c4e31007",
                 "shasum": ""
             },
             "require": {
@@ -1196,7 +1147,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/9.6.37"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/9.6.38"
             },
             "funding": [
                 {
@@ -1204,7 +1155,7 @@
                     "type": "other"
                 }
             ],
-            "time": "2026-09-23T09:59:59+00:00"
+            "time": "2026-10-05T05:44:26+00:00"
         },
         {
             "name": "sebastian/cli-parser",
